@@ -1,0 +1,5 @@
+/transpyle_flash.py
+
+# Jupyter Notebook
+/.ipynb_checkpoints
+*-checkpoint.ipynb
