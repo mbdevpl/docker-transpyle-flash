@@ -26,16 +26,15 @@ USER user
 
 RUN ln -s /home/user/Projects/transpyle-flash/flash-subset /home/user/Projects/flash-subset
 
-#WORKDIR /home/user/Projects/flash-subset
 WORKDIR /home/user/Projects/flash-subset/FLASH4.4
 RUN bash /home/user/Projects/transpyle-flash/setup_flash.sh
 
-RUN ./setup HydroStatic --auto +unsplitHydro
+RUN ./setup Sod -auto -2d -unit=Grid/GridAmrexLike -unit=physics/Hydro/HydroMain/simpleUnsplit/HLL -parfile=demo_simplehydro_2d.par
 
 WORKDIR /home/user/Projects/flash-subset/FLASH4.4/object
 
-#RUN sed -i  's|lrefine_max                    = 5|lrefine_max                    = 2|' flash.par
-#RUN make
+RUN make
+RUN mpirun -np 2 flash4
 
 #
 # FLASH tools
