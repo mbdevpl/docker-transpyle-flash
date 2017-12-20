@@ -27,7 +27,7 @@ USER user
 RUN ln -s /home/user/Projects/transpyle-flash/flash-subset /home/user/Projects/flash-subset
 
 WORKDIR /home/user/Projects/flash-subset/FLASH4.4
-RUN bash /home/user/Projects/transpyle-flash/setup_flash.sh
+RUN bash /home/user/Projects/transpyle-flash/flash_site_patch.sh
 
 RUN ./setup Sod -auto -2d -unit=Grid/GridAmrexLike -unit=physics/Hydro/HydroMain/simpleUnsplit/HLL -parfile=demo_simplehydro_2d.par
 
