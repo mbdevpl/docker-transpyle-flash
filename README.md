@@ -43,7 +43,7 @@ On the host, execute the following:
 In the container, go to the directory contianing FLASH and build and run the simulation:
 
     cd ~/Projects/flash-subset/FLASH4.4/
-    ./setup HydroStatic --auto +unsplitHydro
+    ./setup Sod -auto -2d -unit=Grid/GridAmrexLike -unit=physics/Hydro/HydroMain/simpleUnsplit/HLL -parfile=demo_simplehydro_2d.par
     cd object/
     make
     mpirun -np 2 flash4
