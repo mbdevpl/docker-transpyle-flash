@@ -71,7 +71,7 @@ After transpilation is finihsed, you can setup, build and run FLASH again to tes
 You can also mount a directory with FLASH (or other Fortran code) into the container from your host,
 via `--mount` comandline option of `docker run`. So instead of initial command, execute for example:
 
-    sudo docker run -h transmachine --mount src=~/my-flash,target=/home/user/Projects/my-flash,type=bind -it mbdevpl/transpyle-flash
+    sudo docker run -h transmachine --mount src=~/my-flash,target=/home/user/Projects/my-flash,type=bind -it transpyle-flash
 
 That way the container is used only for transpilation, but building and execution of FLASH
 can be done on pre-configured host.
