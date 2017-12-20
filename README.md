@@ -28,7 +28,7 @@ This requires access to FLASH repository.
 
 Then, build the image by running the following:
 
-    sudo docker build -t transpyle-flash .
+    sudo docker build --no-cache -t transpyle-flash .
 
 
 ### Run the container
