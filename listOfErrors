@@ -1,0 +1,35 @@
+Files that produced error in transpilation code = to_fortran(path) : : 
+========================================
+
+*hy_memGetBlkPtr.F90 line 126:15 no viable alternative at input '('
+
+*hy_memInterface.F90:  Open Fortran Parser returned 1
+/home/user/Projects/flash-subset/FLASH4.4/object/hy_memInterface.F90 line 49:13 no viable alternative at input 'POINTER_INTENT_OUT'
+
+*hy_memGetBlkPtr.F90 line 145:9 no viable alternative at input 'POINTER_INTENT_OUT'
+
+*hy_memReleaseBlkPtr.F90 line 86:8 no viable alternative at input 'POINTER_INTENT_OUT'
+
+*hy_memScratchData.F90
+no transformer available for node "signed-operand", a subnode of "operation"
+no transformer available for node "module-subprogram", a subnode of "members"
+
+*hy_simpleInterface.F90 line 627:22 no viable alternative at input 'POINTER_INTENT_IN'
+
+*hy_uhd_DataReconstructNormalDir_GP.F90
+NotImplementedError: cannot convert intrinsic call from raw AST:
+present(Sr)
+
+*Hydro_doLoop1.F90
+KeyError: 'name'
+~/.local/lib/python3.6/site-packages/transpyle/fortran/ast_generalizer.py in _specification(self, node)
+    252         declarations = self.transform_all_subnodes(
+    253             node, warn=False, skip_empty=True,
+--> 254             ignored={'declaration-construct', 'specification-part'})
+    255         return declarations
+    256 
+    
+    
+*Eos_wrapped.F90
+Open Fortran Parser returned 1
+/home/user/Projects/flash-subset/FLASH4.4/object/Eos_wrapped.F90 line 240:8 no viable alternative at input 'POINTER_INTENT_IN'
