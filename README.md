@@ -1,7 +1,6 @@
 # Docker container: Transpyle + FLASH
 
 
-
 ## Recommended knowledge
 
 User must know how to use [FLASH](http://flash.uchicago.edu/site/flashcode/).
@@ -19,12 +18,19 @@ Familiarity at elementary level with the following will help:
 
 ### Build the container image
 
-On the host, go to the root directory of this repository, and, first of all, update git submodule
-with FLASH if necessary, as it will be copied into the image:
+On the host, go to the root directory of this repository, and, first of all, update git submodules
+with FLASH if necessary, as they will be copied into the image:
 
-    git submodule update --remote
+    git submodule update --init
+    git submodule update --remote flash-subset
 
-This requires access to FLASH repository.
+This requires access to FLASH repositories.
+
+Then, make sure that images on which building this image depends, are also up to date:
+
+    sudo docker pull mbdevpl/usable-ubuntu:16.04
+    sudo docker pull mbdevpl/usable-python:ubuntu16.04
+    sudo docker pull mbdevpl/transpyle:ubuntu16.04
 
 Then, build the image by running the following:
 
