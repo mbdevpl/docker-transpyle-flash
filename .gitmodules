@@ -1,3 +1,9 @@
+[submodule "flash-4.4"]
+	path = flash-4.4
+	url = git@github.com:chaw0023/flash4.5.git
+[submodule "flash-4.5"]
+	path = flash-4.5
+	url = git@github.com:chaw0023/flash4.5.git
 [submodule "flash-subset"]
 	path = flash-subset
 	url = git@github.com:ECP-Astro/FLASH-subset.git
