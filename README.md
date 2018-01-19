@@ -30,7 +30,7 @@ Then, make sure that images on which building this image depends, are also up to
 
     sudo docker pull mbdevpl/usable-ubuntu:16.04
     sudo docker pull mbdevpl/usable-python:ubuntu16.04
-    sudo docker pull mbdevpl/transpyle:ubuntu16.04
+    sudo docker pull mbdevpl/transpyle:0.3.1
 
 Then, build the image by running the following:
 

@@ -1,4 +1,4 @@
-FROM mbdevpl/transpyle:ubuntu16.04
+FROM mbdevpl/transpyle:0.3.1
 
 MAINTAINER Mateusz Bysiek <mateusz.bysiek.spam@gmail.com>
 
