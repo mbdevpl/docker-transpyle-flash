@@ -46,28 +46,24 @@ On the host, execute the following:
 
 ### Run FLASH in the container
 
-In the container, go to the directory contianing FLASH and build and run the simulation:
-
-    cd ~/Projects/flash-subset/FLASH4.4/
-    ./setup Sod -auto -2d -unit=Grid/GridAmrexLike -unit=physics/Hydro/HydroMain/simpleUnsplit/HLL -parfile=demo_simplehydro_2d.par
-    cd object/
-    make
-    mpirun -np 2 flash4
+In the container, go to the directory containing FLASH, then set up and run the simulation.
+Some examples of how to do this are in file [flash_setup_examples.sh](flash_setup_examples.sh).
 
 
 ### Transpile FLASH in the container
 
-Then, in the container:
+In the container, do the following:
 
     cd ~/Projects/transpyle-flash
     screen -S "TranspyleNotebook" python3 -m jupyter notebook --ip=$(hostname -i) --port=8080
 
 Then, point your host browser to the address of the notebook which should be printed in the terminal.
-After that, you can detach from the notebook's screen in the container (using Ctrl+A+D).
+After that, you can detach from the notebook's screen in the container (using `Ctrl+A+D`).
 If at any time you want to return to the notebook console, type `screen -r TranspyleNotebook`.
 
 In your host's browser, you should see jupyter notebook index page `http://container-ip:8080/tree`.
-Open `transpyle_flash.ipynb`. To test default transpilation scenario, execute all cells in the notebook.
+Open [transpyle_flash.ipynb](transpyle_flash.ipynb). To test default transpilation scenario,
+execute all cells in the notebook.
 
 After transpilation is finihsed, you can setup, build and run FLASH again to test it.
 
@@ -81,3 +77,7 @@ via `--mount` comandline option of `docker run`. So instead of initial command, 
 
 That way the container is used only for transpilation, but building and execution of FLASH
 can be done on pre-configured host.
+
+Remark: when mounting, the mounted folder is owned by root within the container - and changing it's
+ownership breaks ownership of files in the host system. Therefore it's best to mount files from
+host with read-only intentions.
