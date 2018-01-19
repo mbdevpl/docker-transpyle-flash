@@ -1,5 +1,15 @@
-/transpyle_flash.py
-
 # Jupyter Notebook
 /.ipynb_checkpoints
 *-checkpoint.ipynb
+
+# Python
+/build
+/dist
+/.cache
+__pycache__
+*.egg
+*.egg-info
+*.pyc
+
+# other
+/transpyle_flash.py

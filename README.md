@@ -32,6 +32,11 @@ Then, make sure that images on which building this image depends, are also up to
     sudo docker pull mbdevpl/usable-python:ubuntu16.04
     sudo docker pull mbdevpl/transpyle:0.3.1
 
+If you any modifications were made to submodules, you can revert them using:
+
+    git submodule foreach git clean -f -d -x
+    git submodule foreach git reset --hard HEAD
+
 Then, build the image by running the following:
 
     sudo docker build --no-cache -t transpyle-flash .
@@ -47,7 +52,16 @@ On the host, execute the following:
 ### Run FLASH in the container
 
 In the container, go to the directory containing FLASH, then set up and run the simulation.
-Some examples of how to do this are in file [flash_setup_examples.sh](flash_setup_examples.sh).
+Some examples of how to do this are in file [`flash_setup_examples.sh`](flash_setup_examples.sh).
+
+You can, for example, run that file:
+
+    ./flash_setup_examples.sh
+
+Or, the following will pick up and test functions from [`test_flash.py`](test_flash.py):
+
+    python3 -m unittest discover --verbose
+    python3 -m unittest test_flash.Flash45Tests.test_eos_idealGamma
 
 
 ### Transpile FLASH in the container
@@ -62,7 +76,7 @@ After that, you can detach from the notebook's screen in the container (using `C
 If at any time you want to return to the notebook console, type `screen -r TranspyleNotebook`.
 
 In your host's browser, you should see jupyter notebook index page `http://container-ip:8080/tree`.
-Open [transpyle_flash.ipynb](transpyle_flash.ipynb). To test default transpilation scenario,
+Open [`transpyle_flash.ipynb`](transpyle_flash.ipynb). To test default transpilation scenario,
 execute all cells in the notebook.
 
 After transpilation is finihsed, you can setup, build and run FLASH again to test it.
@@ -80,4 +94,4 @@ can be done on pre-configured host.
 
 Remark: when mounting, the mounted folder is owned by root within the container - and changing it's
 ownership breaks ownership of files in the host system. Therefore it's best to mount files from
-host with read-only intentions.
+host with read-only intentions. See: https://github.com/moby/moby/issues/2259
