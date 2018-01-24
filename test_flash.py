@@ -73,7 +73,7 @@ class FlashTests(unittest.TestCase):
                 fortran_to_fortran(path)
                 all_failed = False
         if all_failed:
-            self.fail(msg='Failed to transpile any of the files {}'
+            self.fail(msg='Failed to transpile any of the files {}.'
                       .format(absolute_transpiled_paths))
 
     def run_flash(self, flash_args):
@@ -113,6 +113,7 @@ class FlashTests(unittest.TestCase):
             'magnetoHD/CurrentSheet -auto -2d -gridinterpolation=native -debug'
         self.run_problem(transpiled_paths, args)
 
+    @unittest.expectedFailure
     def test_hy_uhd_getFaceFlux(self):
         """Initially issue #1, now "contains in subroutine"."""
         paths = ['physics/Hydro/HydroMain/unsplit/hy_uhd_getFaceFlux.F90']
@@ -149,6 +150,7 @@ class FlashSubsetTests(FlashTests):
         paths = ['physics/Hydro/HydroMain/split/MHD_8Wave/hy_8wv_interpolate.F90']
         self.run_mhd_rotor_problem(paths)
 
+    @unittest.expectedFailure
     def test_hy_8wv_fluxes(self):
         """Initially issue #3, now "contains in subroutine"."""
         paths = ['physics/Hydro/HydroMain/split/MHD_8Wave/hy_8wv_fluxes.F90']
@@ -185,7 +187,3 @@ class Flash45Tests(FlashTests):
     @classmethod
     def setUpClass(cls):
         cls.root_path = pathlib.Path('flash-4.5')
-
-    def test_eos_idealGamma(self):
-        paths = ['physics/Eos/EosMain/Gamma/eos_idealGamma.F90']
-        self.run_mhd_rotor_problem(paths)
