@@ -78,6 +78,27 @@ class FlashTests(unittest.TestCase):
             self.fail(msg='Failed to transpile any of the files {}.'
                       .format(absolute_transpiled_paths))
 
+    def _run_and_check(self, cmd, wd, log_filename_prefix):
+        cmd_result = subprocess.run(' '.join(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                    shell=True, cwd=str(wd))
+        cmd_msg = None
+        if cmd_result.returncode != 0:
+            log_dir = pathlib.Path(_HERE, self.id())
+            log_dir.mkdir(parents=True, exist_ok=True)
+            cmd_stdout = cmd_result.stdout.decode()
+            with open(str(pathlib.Path(log_dir, '{}_stdout.log'.format(log_filename_prefix))),
+                      'w') as cmd_stdout_file:
+                cmd_stdout_file.write(cmd_stdout)
+            cmd_stderr = cmd_result.stderr.decode()
+            with open(str(pathlib.Path(log_dir, '{}_stderr.log'.format(log_filename_prefix))),
+                      'w') as cmd_stderr_file:
+                cmd_stderr_file.write(cmd_stderr)
+            cmd_msg = '"{}" failed, returncode={}, logs were written to "{}"' \
+                ' and last 50 lines of stderr follow:\n{}'.format(
+                    ' '.join(cmd), cmd_result.returncode, log_dir,
+                    ''.join(cmd_stderr.splitlines(keepends=True)[-50:]))
+        self.assertEqual(cmd_result.returncode, 0, msg=cmd_msg)
+
     def run_flash(self, flash_args):
         absolute_flash_path = pathlib.Path(_HERE, self.root_path)
         absolute_object_path = pathlib.Path(_HERE, self.root_path, self.object_path)
@@ -90,13 +111,13 @@ class FlashTests(unittest.TestCase):
 
         with self.subTest(flash_path=absolute_flash_path, setup_cmd=flash_setup_cmd,
                           make_cmd=flash_make_cmd, run_cmd=flash_run_cmd):
-            setup_result = subprocess.run(' '.join(flash_setup_cmd), shell=True,
-                                          cwd=str(absolute_flash_path))
-            self.assertEqual(setup_result.returncode, 0, msg=setup_result)
+            _LOG.warning('Setting up FLASH...')
+            self._run_and_check(flash_setup_cmd, absolute_flash_path, 'setup')
+            _LOG.warning('Setup succeeded.')
 
-            make_result = subprocess.run(' '.join(flash_make_cmd), shell=True,
-                                         cwd=str(absolute_object_path))
-            self.assertEqual(make_result.returncode, 0, msg=make_result)
+            _LOG.warning('Building FLASH...')
+            self._run_and_check(flash_make_cmd, absolute_object_path, 'make')
+            _LOG.warning('Build succeeded.')
 
             run_result = subprocess.run(' '.join(flash_run_cmd), shell=True,
                                         cwd=str(absolute_object_path))
