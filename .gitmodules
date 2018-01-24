@@ -1,10 +1,12 @@
 [submodule "flash-4.4"]
 	path = flash-4.4
 	url = git@github.com:chaw0023/flash4.5.git
+	branch = transpyle_docker_44
 [submodule "flash-4.5"]
 	path = flash-4.5
 	url = git@github.com:chaw0023/flash4.5.git
+	branch = transpyle_docker_45
 [submodule "flash-subset"]
 	path = flash-subset
 	url = git@github.com:ECP-Astro/FLASH-subset.git
-	branch = master
+	branch = transpyle_docker

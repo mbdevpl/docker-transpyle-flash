@@ -26,26 +26,17 @@ USER user
 
 RUN ln -s /home/user/Projects/transpyle-flash/flash-subset /home/user/Projects/flash-subset
 
-WORKDIR /home/user/Projects/flash-subset/FLASH4.4
-RUN bash /home/user/Projects/transpyle-flash/flash_site_patch.sh
-
 #
 # FLASH 4.4
 #
 
 RUN ln -s /home/user/Projects/transpyle-flash/flash-4.4 /home/user/Projects/flash-4.4
 
-WORKDIR /home/user/Projects/flash-4.4
-RUN bash /home/user/Projects/transpyle-flash/flash_site_patch.sh
-
 #
 # FLASH 4.5
 #
 
 RUN ln -s /home/user/Projects/transpyle-flash/flash-4.5 /home/user/Projects/flash-4.5
-
-WORKDIR /home/user/Projects/flash-4.5
-RUN bash /home/user/Projects/transpyle-flash/flash_site_patch.sh
 
 #
 #
