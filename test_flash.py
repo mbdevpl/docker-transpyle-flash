@@ -62,6 +62,8 @@ class FlashTests(unittest.TestCase):
         repo_is_dirty = repo.is_dirty(untracked_files=True)
         if repo_is_dirty:
             repo.git.clean(f=True, d=True, x=True)
+            repo.git.reset(hard=True)
+            _LOG.warning('Repository %s has been cleaned and reset.', repo)
 
     def run_transpyle(self, transpiled_paths):
         absolute_transpiled_paths = [pathlib.Path(_HERE, self.root_path, self.source_path, path)
