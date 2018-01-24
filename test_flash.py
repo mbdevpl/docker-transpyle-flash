@@ -5,6 +5,7 @@ import pathlib
 import subprocess
 import unittest
 
+import git
 from transpyle.general import CodeReader, CodeWriter
 from transpyle.fortran import FortranParser, FortranAstGeneralizer, Fortran2008Unparser
 
@@ -51,9 +52,18 @@ class FlashTests(unittest.TestCase):
     make_cmd = ['make']
     run_cmd = ['mpirun', '-np', '2', 'flash4']
 
-    def run_transpyle(self, transpiled_paths):
+    def setUp(self):
         if type(self) is FlashTests:
             self.skipTest('...')
+        repo = git.Repo(str(pathlib.Path(_HERE, self.root_path)), search_parent_directories=True)
+        repo_path = pathlib.Path(repo.working_dir)
+        self.assertIn(str(_HERE), str(repo_path), msg=(repo_path, _HERE, repo))
+        self.assertNotEqual(repo_path, _HERE, msg=(repo_path, _HERE, repo))
+        repo_is_dirty = repo.is_dirty(untracked_files=True)
+        if repo_is_dirty:
+            repo.git.clean(f=True, d=True, x=True)
+
+    def run_transpyle(self, transpiled_paths):
         absolute_transpiled_paths = [pathlib.Path(_HERE, self.root_path, self.source_path, path)
                                      for path in transpiled_paths]
         all_failed = True
@@ -67,8 +77,6 @@ class FlashTests(unittest.TestCase):
                       .format(absolute_transpiled_paths))
 
     def run_flash(self, flash_args):
-        if type(self) is FlashTests:
-            self.skipTest('...')
         absolute_flash_path = pathlib.Path(_HERE, self.root_path)
         absolute_object_path = pathlib.Path(_HERE, self.root_path, self.object_path)
         if isinstance(flash_args, str):
