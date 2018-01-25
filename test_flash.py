@@ -205,11 +205,10 @@ class FlashSubsetTests(FlashTests):
         paths = ['physics/Hydro/HydroMain/unsplit/hy_uhd_TVDslope.F90']
         self.run_sod_problem(paths)
 
-    @unittest.skip('takes really long time')
     def test_hy_uhd_Roe(self):
         """Issue #9."""
         paths = ['physics/Hydro/HydroMain/unsplit/hy_uhd_Roe.F90']
-        self.run_sod_problem(paths)
+        self.run_sod_problem(paths, pre_verify=True)
 
 
 class Flash45Tests(FlashTests):
