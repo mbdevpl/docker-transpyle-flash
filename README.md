@@ -26,12 +26,6 @@ with FLASH if necessary, as they will be copied into the image:
 
 This requires access to FLASH repositories.
 
-Then, make sure that images on which building this image depends, are also up to date:
-
-    sudo docker pull mbdevpl/usable-ubuntu:16.04
-    sudo docker pull mbdevpl/usable-python:ubuntu16.04
-    sudo docker pull mbdevpl/transpyle:0.3.1
-
 If you any modifications were made to submodules, you can revert them using:
 
     git submodule foreach git clean -f -d -x
@@ -39,7 +33,9 @@ If you any modifications were made to submodules, you can revert them using:
 
 Then, build the image by running the following:
 
-    sudo docker build --no-cache -t transpyle-flash .
+    sudo docker build --pull --no-cache -t transpyle-flash .
+
+The, `--pull` option makes sure that image on which building this container depends, is also up to date.
 
 
 ### Run the container
@@ -62,6 +58,7 @@ Or, the following will pick up and test functions from [`test_flash.py`](test_fl
 
     python3 -m unittest discover --verbose
     python3 -m unittest test_flash.Flash45Tests.test_eos_idealGamma
+    python3 -m unittest test_flash.FlashSubsetTests.test_hy_8wv_sweep
 
 
 ### Transpile FLASH in the container

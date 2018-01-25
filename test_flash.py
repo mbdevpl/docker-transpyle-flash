@@ -109,6 +109,7 @@ class FlashTests(unittest.TestCase):
         flash_make_cmd = self.make_cmd
         flash_run_cmd = self.run_cmd
 
+        something_wrong = True
         with self.subTest(flash_path=absolute_flash_path, setup_cmd=flash_setup_cmd,
                           make_cmd=flash_make_cmd, run_cmd=flash_run_cmd):
             _LOG.warning('Setting up FLASH...')
@@ -122,19 +123,24 @@ class FlashTests(unittest.TestCase):
             run_result = subprocess.run(' '.join(flash_run_cmd), shell=True,
                                         cwd=str(absolute_object_path))
             self.assertEqual(run_result.returncode, 0, msg=run_result)
+            something_wrong = False
+        if something_wrong:
+            self.fail('FLASH setup, build, or run failed.')
 
-    def run_problem(self, transpiled_paths, flash_args):
+    def run_problem(self, transpiled_paths, flash_args, pre_verify=False):
+        if pre_verify:
+            self.run_flash(flash_args)
         self.run_transpyle(transpiled_paths)
         self.run_flash(flash_args)
 
-    def run_sod_problem(self, transpiled_paths):
+    def run_sod_problem(self, transpiled_paths, **kwargs):
         args = 'Sod -auto -2d'
-        self.run_problem(transpiled_paths, args)
+        self.run_problem(transpiled_paths, args, **kwargs)
 
-    def run_mhd_rotor_problem(self, transpiled_paths):
+    def run_mhd_rotor_problem(self, transpiled_paths, **kwargs):
         args = \
             'magnetoHD/CurrentSheet -auto -2d -gridinterpolation=native -debug'
-        self.run_problem(transpiled_paths, args)
+        self.run_problem(transpiled_paths, args, **kwargs)
 
     @unittest.expectedFailure
     def test_hy_uhd_getFaceFlux(self):
@@ -182,7 +188,7 @@ class FlashSubsetTests(FlashTests):
     def test_hy_8wv_sweep(self):
         """Issue #5."""
         paths = ['physics/Hydro/HydroMain/split/MHD_8Wave/hy_8wv_sweep.F90']
-        self.run_mhd_rotor_problem(paths)
+        self.run_mhd_rotor_problem(paths, pre_verify=True)
 
     def test_hy_uhd_DataReconstructNormalDir_MH(self):
         """Issue #6."""
@@ -199,6 +205,7 @@ class FlashSubsetTests(FlashTests):
         paths = ['physics/Hydro/HydroMain/unsplit/hy_uhd_TVDslope.F90']
         self.run_sod_problem(paths)
 
+    @unittest.skip('takes really long time')
     def test_hy_uhd_Roe(self):
         """Issue #9."""
         paths = ['physics/Hydro/HydroMain/unsplit/hy_uhd_Roe.F90']
