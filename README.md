@@ -21,8 +21,7 @@ Familiarity at elementary level with the following will help:
 On the host, go to the root directory of this repository, and, first of all, update git submodules
 with FLASH if necessary, as they will be copied into the image:
 
-    git submodule update --init
-    git submodule update --remote flash-subset
+    git submodule update --init --remote
 
 This requires access to FLASH repositories.
 
