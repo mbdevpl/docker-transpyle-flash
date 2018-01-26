@@ -148,13 +148,13 @@ class FlashTests(unittest.TestCase):
 
     # @unittest.expectedFailure
     def test_hy_uhd_getFaceFlux(self):
-        """Initially issue #1, now "contains in subroutine"."""
+        """Issue #1."""
         paths = ['physics/Hydro/HydroMain/unsplit/hy_uhd_getFaceFlux.F90']
         self.run_sod_problem(paths)
 
     # @unittest.expectedFailure
     def test_hy_8wv_fluxes(self):
-        """Initially issue #3, now "contains in subroutine"."""
+        """Issue #3."""
         paths = ['physics/Hydro/HydroMain/split/MHD_8Wave/hy_8wv_fluxes.F90']
         self.run_mhd_rotor_problem(paths)
 
@@ -211,9 +211,9 @@ class Flash45Tests(FlashTests):
         paths = ['physics/Hydro/HydroMain/split/MHD_8Wave/hy_8wv_sweep.F90']
         self.run_mhd_rotor_problem(paths)
 
-    @unittest.expectedFailure
+    @unittest.expectedFailure  # interface
     def test_hy_uhd_TVDslope(self):
-        """Issue #8, now "interface"."""
+        """Issue #8."""
         paths = ['physics/Hydro/HydroMain/unsplit/hy_uhd_TVDslope.F90']
         self.run_sod_problem(paths)
 
