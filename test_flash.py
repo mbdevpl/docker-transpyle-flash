@@ -48,7 +48,6 @@ class FlashTests(unittest.TestCase):
     root_path = None
     source_path = pathlib.Path('source')
     setup_cmd = ['./setup']
-    object_path = pathlib.Path('object')
     make_cmd = ['make']
     run_cmd = ['mpirun', '-np', '2', 'flash4']
 
@@ -99,9 +98,11 @@ class FlashTests(unittest.TestCase):
                     ''.join(cmd_stderr.splitlines(keepends=True)[-50:]))
         self.assertEqual(cmd_result.returncode, 0, msg=cmd_msg)
 
-    def run_flash(self, flash_args):
+    def run_flash(self, flash_args, object_path: pathlib.Path = None):
+        if object_path is None:
+            object_path = pathlib.Path('object')
         absolute_flash_path = pathlib.Path(_HERE, self.root_path)
-        absolute_object_path = pathlib.Path(_HERE, self.root_path, self.object_path)
+        absolute_object_path = pathlib.Path(_HERE, self.root_path, object_path)
         if isinstance(flash_args, str):
             flash_args = flash_args.split(' ')
         flash_setup_cmd = self.setup_cmd + flash_args
@@ -130,11 +131,11 @@ class FlashTests(unittest.TestCase):
         if something_wrong:
             self.fail('FLASH setup, build, or run failed.')
 
-    def run_problem(self, transpiled_paths, flash_args, pre_verify=False):
+    def run_problem(self, transpiled_paths, flash_args, object_path=None, pre_verify=False):
         if pre_verify:
-            self.run_flash(flash_args)
+            self.run_flash(flash_args, object_path)
         self.run_transpyle(transpiled_paths)
-        self.run_flash(flash_args)
+        self.run_flash(flash_args, object_path)
 
     def run_sod_problem(self, transpiled_paths, **kwargs):
         args = 'Sod -auto -2d'
@@ -142,16 +143,16 @@ class FlashTests(unittest.TestCase):
 
     def run_mhd_rotor_problem(self, transpiled_paths, **kwargs):
         args = \
-            'magnetoHD/CurrentSheet -auto -2d -gridinterpolation=native -debug'
-        self.run_problem(transpiled_paths, args, **kwargs)
+            'magnetoHD/CurrentSheet -auto -2d -objdir=mhdrotor -gridinterpolation=native -debug'
+        self.run_problem(transpiled_paths, args, object_path=pathlib.Path('mhdrotor'), **kwargs)
 
-    @unittest.expectedFailure
+    # @unittest.expectedFailure
     def test_hy_uhd_getFaceFlux(self):
         """Initially issue #1, now "contains in subroutine"."""
         paths = ['physics/Hydro/HydroMain/unsplit/hy_uhd_getFaceFlux.F90']
         self.run_sod_problem(paths)
 
-    @unittest.expectedFailure
+    # @unittest.expectedFailure
     def test_hy_8wv_fluxes(self):
         """Initially issue #3, now "contains in subroutine"."""
         paths = ['physics/Hydro/HydroMain/split/MHD_8Wave/hy_8wv_fluxes.F90']
@@ -212,7 +213,7 @@ class Flash45Tests(FlashTests):
 
     @unittest.expectedFailure
     def test_hy_uhd_TVDslope(self):
-        """Issue #8, now "contains in subroutine"."""
+        """Issue #8, now "interface"."""
         paths = ['physics/Hydro/HydroMain/unsplit/hy_uhd_TVDslope.F90']
         self.run_sod_problem(paths)
 
