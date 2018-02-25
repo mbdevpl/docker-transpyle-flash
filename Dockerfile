@@ -1,4 +1,4 @@
-FROM mbdevpl/transpyle:0.3.2
+FROM mbdevpl/transpyle:0.4.0
 
 MAINTAINER Mateusz Bysiek <mateusz.bysiek.spam@gmail.com>
 
