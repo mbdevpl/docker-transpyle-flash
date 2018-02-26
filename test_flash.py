@@ -181,12 +181,31 @@ class FlashSubsetTests(FlashTests):
     def setUpClass(cls):
         cls.root_path = pathlib.Path('flash-subset', 'FLASH4.4')
 
-    def test_hy_hllUnsplit(self):
+    def test_hy_hllUnsplit_sod_mode1(self):
         """First test case proposed for transpilation."""
         paths = ['physics/Hydro/HydroMain/simpleUnsplit/HLL/hy_hllUnsplit.F90']
-        args = \
-            'Sod -auto -2d -unit=Grid/GridAmrexLike' \
-            ' -unit=physics/Hydro/HydroMain/simpleUnsplit/HLL -parfile=demo_simplehydro_2d.par'
+        # args = \
+        #    'Sod -auto -2d -unit=Grid/GridAmrexLike' \
+        #    ' -unit=physics/Hydro/HydroMain/simpleUnsplit/HLL -parfile=demo_simplehydro_2d.par'
+        args = 'Sod -auto -2d +Mode1'
+        self.run_problem(paths, args, pre_verify=True)
+
+    def test_hy_hllUnsplit_sod_mode3(self):
+        """First test case proposed for transpilation."""
+        paths = ['physics/Hydro/HydroMain/simpleUnsplit/HLL/hy_hllUnsplit.F90']
+        args = 'Sod -auto -2d +Mode3'
+        self.run_problem(paths, args, pre_verify=True)
+
+    def test_hy_hllUnsplit_sedov_mode1(self):
+        """."""
+        paths = ['physics/Hydro/HydroMain/simpleUnsplit/HLL/hy_hllUnsplit.F90']
+        args = 'Sedov -auto -2d +Mode1'
+        self.run_problem(paths, args, pre_verify=True)
+
+    def test_hy_hllUnsplit_sedov_mode3(self):
+        """."""
+        paths = ['physics/Hydro/HydroMain/simpleUnsplit/HLL/hy_hllUnsplit.F90']
+        args = 'Sedov -auto -2d +Mode3'
         self.run_problem(paths, args, pre_verify=True)
 
 

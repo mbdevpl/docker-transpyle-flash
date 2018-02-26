@@ -21,7 +21,7 @@ WORKDIR /root
 RUN git clone https://github.com/AMReX-Codes/amrex
 WORKDIR /root/amrex
 RUN git checkout development
-RUN ./configure --dim=2 --debug=yes --prefix=/usr
+RUN ./configure --dim=2 --debug=yes --with-mpi=no --prefix=/usr
 RUN make
 RUN make install
 
