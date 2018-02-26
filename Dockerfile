@@ -17,6 +17,13 @@ USER root
 WORKDIR /usr/lib/x86_64-linux-gnu/
 RUN ln -s libhdf5_openmpi.so libhdf5.so
 RUN ln -s libhdf5_openmpi_hl.so libhdf5_hl.so
+WORKDIR /root
+RUN git clone https://github.com/AMReX-Codes/amrex
+WORKDIR /root/amrex
+RUN git checkout development
+RUN ./configure --dim=2 --debug=yes --prefix=/usr
+RUN make
+RUN make install
 
 USER user
 
