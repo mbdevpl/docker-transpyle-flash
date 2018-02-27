@@ -57,7 +57,8 @@ Or, the following will pick up and test functions from [`test_flash.py`](test_fl
 
     python3 -m unittest discover --verbose
     python3 -m unittest test_flash.Flash45Tests.test_eos_idealGamma
-    python3 -m unittest test_flash.FlashSubsetTests.test_hy_8wv_sweep
+    python3 -m unittest test_flash.Flash45Tests.test_hy_8wv_sweep
+    python3 -m unittest test_flash.FlashSubsetTests
 
 
 ### Transpile FLASH in the container

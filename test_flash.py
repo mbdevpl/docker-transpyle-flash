@@ -146,34 +146,6 @@ class FlashTests(unittest.TestCase):
             'magnetoHD/CurrentSheet -auto -2d -objdir=mhdrotor -gridinterpolation=native -debug'
         self.run_problem(transpiled_paths, args, object_path=pathlib.Path('mhdrotor'), **kwargs)
 
-    # @unittest.expectedFailure
-    def test_hy_uhd_getFaceFlux(self):
-        """Issue #1."""
-        paths = ['physics/Hydro/HydroMain/unsplit/hy_uhd_getFaceFlux.F90']
-        self.run_sod_problem(paths)
-
-    # @unittest.expectedFailure
-    def test_hy_8wv_fluxes(self):
-        """Issue #3."""
-        paths = ['physics/Hydro/HydroMain/split/MHD_8Wave/hy_8wv_fluxes.F90']
-        self.run_mhd_rotor_problem(paths)
-
-    def test_hy_uhd_DataReconstructNormalDir_MH(self):
-        """Issue #6."""
-        paths = ['physics/Hydro/HydroMain/unsplit/hy_uhd_DataReconstructNormalDir_MH.F90']
-        self.run_sod_problem(paths)
-
-    def test_hy_uhd_upwindTransverseFlux(self):
-        """Issue #7."""
-        paths = ['physics/Hydro/HydroMain/unsplit/hy_uhd_upwindTransverseFlux.F90']
-        self.run_sod_problem(paths)
-
-    @unittest.skip('...')
-    def test_(self):
-        paths = []
-        args = ''
-        self.run_problem(paths, args)
-
 
 class FlashSubsetTests(FlashTests):
 
@@ -217,9 +189,21 @@ class Flash45Tests(FlashTests):
     def setUpClass(cls):
         cls.root_path = pathlib.Path('flash-4.5')
 
+    # @unittest.expectedFailure
+    def test_hy_uhd_getFaceFlux(self):
+        """Issue #1."""
+        paths = ['physics/Hydro/HydroMain/unsplit/hy_uhd_getFaceFlux.F90']
+        self.run_sod_problem(paths)
+
     def test_hy_8wv_interpolate(self):
         """Issue #2."""
         paths = ['physics/Hydro/HydroMain/split/MHD_8Wave/hy_8wv_interpolate.F90']
+        self.run_mhd_rotor_problem(paths)
+
+    # @unittest.expectedFailure
+    def test_hy_8wv_fluxes(self):
+        """Issue #3."""
+        paths = ['physics/Hydro/HydroMain/split/MHD_8Wave/hy_8wv_fluxes.F90']
         self.run_mhd_rotor_problem(paths)
 
     def test_eos_idealGamma(self):
@@ -232,6 +216,16 @@ class Flash45Tests(FlashTests):
         paths = ['physics/Hydro/HydroMain/split/MHD_8Wave/hy_8wv_sweep.F90']
         self.run_mhd_rotor_problem(paths)
 
+    def test_hy_uhd_DataReconstructNormalDir_MH(self):
+        """Issue #6."""
+        paths = ['physics/Hydro/HydroMain/unsplit/hy_uhd_DataReconstructNormalDir_MH.F90']
+        self.run_sod_problem(paths)
+
+    def test_hy_uhd_upwindTransverseFlux(self):
+        """Issue #7."""
+        paths = ['physics/Hydro/HydroMain/unsplit/hy_uhd_upwindTransverseFlux.F90']
+        self.run_sod_problem(paths)
+
     @unittest.expectedFailure  # interface
     def test_hy_uhd_TVDslope(self):
         """Issue #8."""
@@ -242,3 +236,9 @@ class Flash45Tests(FlashTests):
         """Issue #9."""
         paths = ['physics/Hydro/HydroMain/unsplit/hy_uhd_Roe.F90']
         self.run_sod_problem(paths)
+
+    @unittest.skip('...')
+    def test_(self):
+        paths = []
+        args = ''
+        self.run_problem(paths, args)
