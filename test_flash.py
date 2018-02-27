@@ -177,6 +177,8 @@ class FlashTests(unittest.TestCase):
 
 class FlashSubsetTests(FlashTests):
 
+    run_cmd = ['./flash4']
+
     @classmethod
     def setUpClass(cls):
         cls.root_path = pathlib.Path('flash-subset', 'FLASH4.4')
