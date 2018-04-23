@@ -13,7 +13,7 @@ Familiarity at elementary level with the following will help:
 * jupyter notebook
 
 
-## How to use
+## Using the Docker container
 
 
 ### Build the container image
@@ -42,6 +42,22 @@ The, `--pull` option makes sure that image on which building this container depe
 On the host, execute the following:
 
     sudo docker run -h transmachine -it transpyle-flash
+
+
+## Using FLASH within the container
+
+
+### Load Spack modules
+
+We rely on Spack for FLASH dependencies. They have been already installed,
+but necessary modules need to be loaded after starting the container.
+
+For FLASH 4.4, 4.5 as well as FLASH subset:
+
+    spack load mpich@3.2.1 hdf5@1.8.19 openblas@0.2.20 hypre@2.13.0
+
+Additionally, FLASH subset depends on AMReX, which was also installed but outside of Spack due to
+configuration issues with the version provided via Spack.
 
 
 ### Run FLASH in the container

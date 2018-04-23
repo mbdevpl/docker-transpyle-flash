@@ -8,12 +8,12 @@
 
 cd ~/Projects/flash-subset/FLASH4.4
 
-./setup Sod -auto -2d -unit=Grid/GridAmrexLike -unit=physics/Hydro/HydroMain/simpleUnsplit/HLL -parfile=demo_simplehydro_2d.par
+./setup Sod -auto -2d +Mode3 -site spack
 
 cd object
 
 make
-mpirun -np 2 flash4
+mpirun -np 1 ./flash4
 
 #
 # FLASH 4.4
@@ -21,12 +21,12 @@ mpirun -np 2 flash4
 
 cd ~/Projects/flash-4.4
 
-./setup Sod -auto -2d
+./setup Sod -auto -2d -site spack
 
 cd object
 
 make
-mpirun -np 2 flash4
+mpirun -np 2 ./flash4
 
 #
 # FLASH 4.5
@@ -34,9 +34,9 @@ mpirun -np 2 flash4
 
 cd ~/Projects/flash-4.5
 
-./setup Sod -auto -2d
+./setup Sod -auto -2d -site spack
 
 cd object
 
 make
-mpirun -np 2 flash4
+mpirun -np 2 ./flash4
