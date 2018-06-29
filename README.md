@@ -8,6 +8,7 @@ User must know how to use [FLASH](http://flash.uchicago.edu/site/flashcode/).
 Familiarity at elementary level with the following will help:
 
 * docker command-line interface
+* Spack package manager
 * `screen` linux command
 * python
 * jupyter notebook
@@ -16,7 +17,17 @@ Familiarity at elementary level with the following will help:
 ## Using the Docker container
 
 
-### Build the container image
+### Building the images
+
+Rebuilding images is only necessary when:
+
+* FLASH is updated (then, rebuild the main container image)
+* dependencies are updated (then, rebuild the dependencies image and the main container image)
+* transpyle framework is updated (changes in the [`Dockerfile`](dependencies/Dockerfile#L1)
+  of the dependencies image plus rebuild of all of the above is required)
+
+
+#### Rebuild the main container image
 
 On the host, go to the root directory of this repository, and, first of all, update git submodules
 with FLASH if necessary, as they will be copied into the image:
@@ -32,9 +43,25 @@ If you any modifications were made to submodules, you can revert them using:
 
 Then, build the image by running the following:
 
-    sudo docker build --pull --no-cache -t transpyle-flash .
+    sudo docker build --pull --no-cache -t mbdevpl/transpyle-flash:build-$(date +"%Y-%m-%d") .
+    sudo docker push mbdevpl/transpyle-flash:build-$(date +"%Y-%m-%d")
+
+    sudo docker tag mbdevpl/transpyle-flash:{build-$(date +"%Y-%m-%d"),latest}
+    sudo docker push mbdevpl/transpyle-flash:latest
 
 The, `--pull` option makes sure that image on which building this container depends, is also up to date.
+
+
+#### Rebuilding the dependencies image
+
+Normally you wouldn't need to do this, but if you want to update the dependencies image:
+
+    cd dependencies
+    sudo docker build --pull --no-cache -t mbdevpl/transpyle-flash:dependencies-$(date +"%Y-%m-%d") .
+    sudo docker push mbdevpl/transpyle-flash:dependencies-$(date +"%Y-%m-%d")
+
+And after that please update the 1st line of the main [`Dockerfile`](Dockerfile#L1) to mention
+the latest dependencies image.
 
 
 ### Run the container

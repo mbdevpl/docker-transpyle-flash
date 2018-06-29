@@ -1,11 +1,6 @@
 #!/bin/bash
 set -Eeuxo pipefail
 
-#PS1=""
-#source ${HOME}/.profile
-#source /etc/profile  # for module command
-#source "/home/user/Spack/share/spack/setup-env.sh"
-
 #
 # spack packages
 #

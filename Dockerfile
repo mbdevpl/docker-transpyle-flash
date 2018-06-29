@@ -1,4 +1,4 @@
-FROM mbdevpl/transpyle-flash:dependencies-0.1.0
+FROM mbdevpl/transpyle-flash:dependencies-2018-06-29
 
 MAINTAINER Mateusz Bysiek <mateusz.bysiek.spam@gmail.com>
 

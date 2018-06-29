@@ -10,38 +10,30 @@ git checkout development
 
 spack load mpich@3.2.1
 
-./configure --dim 2 --with-mpi no --with-omp yes --debug yes --prefix ~/Software/AMReX_2d_nompi_debug
-make
-make install
-
-make clean
-
-./configure --dim 2 --with-mpi no --with-omp yes --prefix ~/Software/AMReX_2d_nompi
-make
-make install
-
-make clean
-
-./configure --dim 2 --with-omp yes --debug yes --prefix ~/Software/AMReX_2d_debug
-make
-make install
-
-make clean
-
-./configure --dim 2 --with-omp yes --prefix ~/Software/AMReX_2d
-make
-make install
-
-make clean
-
-./configure --with-omp yes --debug yes --prefix ~/Software/AMReX_3d_debug
-make
-make install
-
-make clean
-
-./configure --with-omp yes --prefix ~/Software/AMReX_3d
-make
-make install
-
-make clean
+for debug in "no" "yes"
+do
+  for mpi in "yes" "no"
+  do
+    for omp in "yes" "no"
+    do
+      for dim in "2" "3"
+      do
+        prefix="${HOME}/Software/AMReX_${dim}d"
+        if [ ${mpi} == "no" ] ; then
+          prefix="${prefix}_nompi"
+        fi
+        if [ ${omp} == "no" ] ; then
+          prefix="${prefix}_noomp"
+        fi
+        if [ ${debug} == "yes" ] ; then
+          prefix="${prefix}_debug"
+        fi
+        # echo "${prefix}"
+        ./configure --dim ${dim} --with-mpi ${mpi} --with-omp ${omp} --debug ${debug} --prefix ${prefix}
+        make
+        make install
+        make clean
+      done
+    done
+  done
+done
