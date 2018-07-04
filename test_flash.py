@@ -47,7 +47,7 @@ class FlashTests(unittest.TestCase):
 
     root_path = None
     source_path = pathlib.Path('source')
-    setup_cmd = ['./setup']
+    setup_cmd = ['./setup', '-site', 'spack']
     make_cmd = ['make']
     run_cmd = ['mpirun', '-np', '2', 'flash4']
 

@@ -68,7 +68,7 @@ the latest dependencies image.
 
 On the host, execute the following:
 
-    sudo docker run -h transmachine -it transpyle-flash
+    sudo docker run -h transmachine -it mbdevpl/transpyle-flash:latest
 
 
 ## Using FLASH within the container
@@ -83,8 +83,25 @@ For FLASH 4.4, 4.5 as well as FLASH subset:
 
     spack load mpich@3.2.1 hdf5@1.8.19 openblas@0.2.20 hypre@2.13.0
 
+
+### Choose AMReX build
+
 Additionally, FLASH subset depends on AMReX, which was also installed but outside of Spack due to
 configuration issues with the version provided via Spack.
+
+AMReX can be built:
+
+- with or without MPI support,
+- with or without OpenMP support,
+- in debug or release mode, and
+- for 2D or 3D grids.
+
+The image comes with pre-built all 16 variants of AMReX. They are stored in `~/Software/` folder.
+
+To choose a version to be used with FLASH, simply set the following environment variable before
+running `setup` for FLASH.
+
+    export AMREX_PATH=~/Software/AMReX_2d_noomp
 
 
 ### Run FLASH in the container
