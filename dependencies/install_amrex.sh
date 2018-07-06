@@ -3,12 +3,13 @@ set -Eeuxo pipefail
 
 cd ~/Projects
 
-git clone https://github.com/AMReX-Codes/amrex
+if [ ! -d "amrex" ] ; then
+  git clone https://github.com/AMReX-Codes/amrex --branch development
+
+  spack load mpich@3.2.1
+fi
+
 cd ~/Projects/amrex
-
-git checkout development
-
-spack load mpich@3.2.1
 
 for debug in "no" "yes"
 do
