@@ -81,7 +81,7 @@ but necessary modules need to be loaded after starting the container.
 
 For FLASH 4.4, 4.5 as well as FLASH subset:
 
-    spack load mpich@3.2.1 hdf5@1.8.19 openblas@0.2.20 hypre@2.13.0
+    spack load mpich@3.2.1 hdf5@1.8.20 openblas@0.3.0 hypre@2.14.0
 
 
 ### Choose AMReX build

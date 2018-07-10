@@ -18,16 +18,16 @@ spack load mpich@3.2.1
 
 # HDF5
 
-spack install hdf5@1.8.19 +fortran +hl +mpi ^mpich@3.2.1
-spack load hdf5@1.8.19
+spack install --no-checksum hdf5@1.8.20 +fortran +hl +mpi ^mpich@3.2.1
+spack load hdf5@1.8.20
 
 # hypre
 
-spack install openblas@0.2.20 threads=openmp
-spack load openblas@0.2.20
+spack install openblas@0.3.0 threads=openmp
+spack load openblas@0.3.0
 
-spack install hypre@2.13.0 +mpi ^mpich@3.2.1 ^openblas@0.2.20 threads=openmp
-spack load hypre@2.13.0
+spack install hypre@2.14.0 +mpi ^mpich@3.2.1 ^openblas@0.3.0 threads=openmp
+spack load hypre@2.14.0
 
 # amrex
 
