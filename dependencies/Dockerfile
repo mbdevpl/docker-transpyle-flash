@@ -28,4 +28,4 @@ RUN bash install_spack_packages.sh
 # amrex
 #
 
-RUN bash install_amrex.sh
+RUN spack load mpich@3.2.1 && bash install_amrex.sh

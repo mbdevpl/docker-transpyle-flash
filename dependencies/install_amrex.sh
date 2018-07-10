@@ -5,8 +5,6 @@ cd ~/Projects
 
 if [ ! -d "amrex" ] ; then
   git clone https://github.com/AMReX-Codes/amrex --branch development
-
-  spack load mpich@3.2.1
 fi
 
 cd ~/Projects/amrex
