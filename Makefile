@@ -1,3 +1,4 @@
+SHELL=bash
 
 NOW_DATE=$(shell date +"%Y-%m-%d")
 NOW=$(shell date +"%Y-%m-%d_%H.%M.%S%z")
