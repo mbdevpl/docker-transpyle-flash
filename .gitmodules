@@ -9,4 +9,4 @@
 [submodule "flash-subset"]
 	path = flash-subset
 	url = git@github.com:ECP-Astro/FLASH-subset.git
-	branch = spack
+	branch = spack_docker
