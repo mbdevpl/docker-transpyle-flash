@@ -51,6 +51,8 @@ class FlashTests(unittest.TestCase):
     make_cmd = ['make']
     run_cmd = ['mpirun', '-np', '2', 'flash4']
 
+    timeout = 60  # type: int
+
     def setUp(self):
         if type(self) is FlashTests:
             self.skipTest('...')
@@ -123,7 +125,7 @@ class FlashTests(unittest.TestCase):
 
             try:
                 run_result = subprocess.run(' '.join(flash_run_cmd), shell=True,
-                                            cwd=str(absolute_object_path), timeout=10)
+                                            cwd=str(absolute_object_path), timeout=self.timeout)
                 self.assertEqual(run_result.returncode, 0, msg=run_result)
             except subprocess.TimeoutExpired:
                 _LOG.warning('Test %s takes a long time.', self.id(), exc_info=1)
