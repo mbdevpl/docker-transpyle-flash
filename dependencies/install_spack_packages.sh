@@ -23,7 +23,7 @@ spack load hdf5@1.8.20
 
 # hypre
 
-spack install hypre@2.14.0 +mpi ^mpich@3.2.1 ^openblas@0.3.0 threads=openmp
+spack install --no-checksum hypre@2.14.0 +mpi ^mpich@3.2.1 ^openblas@0.3.2 threads=openmp
 spack load hypre@2.14.0
 
 # amrex
