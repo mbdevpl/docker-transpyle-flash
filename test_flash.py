@@ -1,5 +1,6 @@
 """Tests of FLASH transpilation."""
 
+import datetime
 import logging
 import pathlib
 import subprocess
@@ -14,6 +15,8 @@ logging.basicConfig()
 _LOG = logging.getLogger(__name__)
 
 _HERE = pathlib.Path(__file__).parent.resolve()
+
+_NOW = datetime.datetime.now()
 
 
 def fortran_to_fortran(path: pathlib.Path):
@@ -49,9 +52,9 @@ class FlashTests(unittest.TestCase):
     source_path = pathlib.Path('source')
     setup_cmd = ['./setup', '-site', 'spack']
     make_cmd = ['make']
-    run_cmd = ['mpirun', '-np', '2', 'flash4']
+    run_cmd = ['mpirun', '-np', '2', './flash4']
 
-    timeout = 60  # type: int
+    timeout = None  # type: int
 
     def setUp(self):
         if type(self) is FlashTests:
@@ -84,7 +87,8 @@ class FlashTests(unittest.TestCase):
                                     shell=True, cwd=str(wd))
         cmd_msg = None
         if cmd_result.returncode != 0:
-            log_dir = pathlib.Path(_HERE, self.id())
+            log_dir = pathlib.Path(
+                _HERE, 'results', '{}_{}'.format(_NOW.strftime('%Y%m%d-%H%M%S'), self.id()))
             log_dir.mkdir(parents=True, exist_ok=True)
             cmd_stdout = cmd_result.stdout.decode()
             with open(str(pathlib.Path(log_dir, '{}_stdout.log'.format(log_filename_prefix))),
@@ -133,7 +137,7 @@ class FlashTests(unittest.TestCase):
         if something_wrong:
             self.fail('FLASH setup, build, or run failed.')
 
-    def run_problem(self, transpiled_paths, flash_args, object_path=None, pre_verify=False):
+    def run_problem(self, transpiled_paths, flash_args, object_path=None, pre_verify=True):
         if pre_verify:
             self.run_flash(flash_args, object_path)
         self.run_transpyle(transpiled_paths)
