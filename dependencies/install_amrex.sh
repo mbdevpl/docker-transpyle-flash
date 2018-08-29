@@ -1,13 +1,12 @@
 #!/bin/bash
 set -Eeuxo pipefail
 
-cd ~/Projects
-
-if [ ! -d "amrex" ] ; then
+if [ ! -d "${HOME}/Projects/amrex" ] ; then
+  cd "${HOME}/Projects"
   git clone https://github.com/AMReX-Codes/amrex --branch development
 fi
 
-cd ~/Projects/amrex
+cd "${HOME}/Projects/amrex"
 
 for debug in "no" "yes"
 do
