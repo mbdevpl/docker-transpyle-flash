@@ -16,6 +16,8 @@ RUN spack install mpich@3.2.1 && \
   spack install --no-checksum hypre@2.14.0 +mpi ^mpich ^openblas@0.3.2 threads=openmp && \
   echo "spack load -r mpich && spack load -r hdf5 && spack load -r hypre" >> /home/user/.bash_history && \
   spack install amrex@develop dimensions=2 ~openmp +fortran +particles +mpi ^mpich && \
-  echo "spack load -r mpich && spack load -r hdf5 && spack load -r hypre && spack load -r amrex" >> /home/user/.bash_history && \
-  spack install hpctoolkit@master +mpi ^mpich && \
-  echo "spack load -r hpctoolkit@master" >> /home/user/.bash_history
+  echo "spack load -r mpich && spack load -r hdf5 && spack load -r hypre && spack load -r amrex" >> /home/user/.bash_history
+
+#   && \
+#  spack install hpctoolkit@master +mpi ^mpich && \
+#  echo "spack load -r hpctoolkit@master" >> /home/user/.bash_history

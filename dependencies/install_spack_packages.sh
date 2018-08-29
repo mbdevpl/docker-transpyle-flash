@@ -14,4 +14,4 @@ spack install amrex@develop dimensions=2 ~openmp +fortran +particles +mpi ^mpich
 # other spack packages
 #
 
-spack install hpctoolkit@master +mpi ^mpich
+#spack install hpctoolkit@master +mpi ^mpich
