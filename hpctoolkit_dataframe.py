@@ -109,7 +109,7 @@ class HPCtoolkitDataFrame(pd.DataFrame):
             # self.loc[str(location)] = series
             rows.append(data)
 
-        if depth >= self._max_depth:
+        if self._max_depth is not None and depth >= self._max_depth:
             return rows
 
         add_local = True
@@ -117,7 +117,8 @@ class HPCtoolkitDataFrame(pd.DataFrame):
             if measurement.tag == 'M':  # metric data
                 continue
             if measurement.tag == 'PF':  # procedure frame
-                _ = '{}.{}'.format(self._procedures_by_id[int(measurement.attrib['n'])], measurement.attrib['i'])
+                _ = '{}.{}'.format(self._procedures_by_id[int(measurement.attrib['n'])],
+                                   measurement.attrib['i'])
                 new_location = (*location, _)
             elif measurement.tag == 'C':
                 if self._skip_callsite:
@@ -161,7 +162,7 @@ class HPCtoolkitDataFrame(pd.DataFrame):
         column_index = self.columns.get_loc(base_column) + 1
         simple_self = self[[base_column, 'location']]
         if method == 'total':
-            total = simple_self[simple_self.location == ()][base_column].item()
+            total = simple_self[simple_self['location'] == ()][base_column].item()
             data = [row[base_column] / total for _, row in simple_self.iterrows()]
         else:
             assert method == 'parent'
@@ -172,10 +173,11 @@ class HPCtoolkitDataFrame(pd.DataFrame):
                 base = 0.0
                 while base < value:
                     base_location = base_location[:-1]
-                    filtered = simple_self[simple_self.location == base_location]
+                    filtered = simple_self[simple_self['location'] == base_location]
                     if len(filtered) == 0:
                         continue
-                    assert len(filtered) == 1, (base_column, row['location'], base_location, filtered)
+                    assert len(filtered) == 1, \
+                        (base_column, row['location'], base_location, filtered)
                     base = filtered[base_column].item()
                 data.append(value / base)
         self.insert(column_index, column_name, data)
