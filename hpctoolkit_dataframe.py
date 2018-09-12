@@ -1,7 +1,7 @@
 """Operate on HPCtoolkit XML database files as pandas DataFrames."""
 
+from cmath import sqrt  # used in formulas for metrics
 import logging
-import math
 import pathlib
 import pprint
 import re
@@ -23,7 +23,8 @@ def _metrics_formula_sub_predicate(match: t.Match) -> str:
     return 'data.get(self._metrics_by_id[{}])'.format(match.group()[1:])
 
 
-def _derive_metrics_formulas(metrics: ET.Element) -> dict:
+def _derive_metrics_formulas(
+        metrics: ET.Element) -> t.Dict[str, t.Tuple[str, t.Callable[[pd.DataFrame, dict], t.Any]]]:
     metrics_formulas = {}
     for metric in metrics:
         formulas = metric.findall('./MetricFormula')
@@ -31,13 +32,42 @@ def _derive_metrics_formulas(metrics: ET.Element) -> dict:
             if formula.attrib['t'] != 'finalize':
                 continue
             raw_formula = formula.attrib['frm']
-            # _LOG.debug('%s', raw_formula)
-            metrics_formulas[metric.attrib['n']] = re.sub(
-                '\$[0-9]+', _metrics_formula_sub_predicate, raw_formula)
+            formula_code = re.sub('\$[0-9]+', _metrics_formula_sub_predicate, raw_formula)
+            compiled_formula = eval('lambda self, data: {}'.format(formula_code), None, None)
+            metrics_formulas[metric.attrib['n']] = (formula_code, compiled_formula)
             break
-        # else:
-        #    metrics_formulas[metric.attrib['n']] = 'data["{}"]'.format(metric.attrib['n'])
     return metrics_formulas
+
+
+def _location_filter(series: pd.Series, fragments: t.Sequence[tuple],
+                     prefix: tuple, suffix: tuple) -> bool:
+    location = series.at['location']
+    for fragment in fragments:
+        if fragment:
+            raise NotImplementedError('filtering by arbitrary fragment not supported')
+    if prefix:
+        if len(location) < len(prefix):
+            return False
+        for location_item, prefix_item in zip(location[:len(prefix)], prefix):
+            if not (prefix_item.fullmatch(location_item) if isinstance(prefix_item, t.Pattern)
+                    else prefix_item == location_item):
+                return False
+    if suffix:
+        if len(location) < len(suffix):
+            return False
+        for location_item, suffix_item in zip(location[-len(suffix):], suffix):
+            if not (suffix_item.fullmatch(location_item) if isinstance(suffix_item, t.Pattern)
+                    else suffix_item == location_item):
+                return False
+    return True
+
+
+def _depth_filter(
+        series: pd.Series, min_depth: t.Optional[int], max_depth: t.Optional[int]) -> bool:
+    depth = len(series.at['location'])
+    if min_depth is not None and depth < min_depth or max_depth is not None and depth > max_depth:
+        return False
+    return True
 
 
 class HPCtoolkitDataFrame(pd.DataFrame):
@@ -48,6 +78,10 @@ class HPCtoolkitDataFrame(pd.DataFrame):
 
     _skip_callsite = True
     """Skip over callsite nodes to avoid over-complicating the calltree."""
+
+    @property
+    def _constructor(self):
+        return HPCtoolkitDataFrame
 
     def __init__(self, *args,
                  path: pathlib.Path = None, max_depth: t.Optional[int] = None, **kwargs):
@@ -79,43 +113,50 @@ class HPCtoolkitDataFrame(pd.DataFrame):
         columns = [metric for _, metric in sorted(self._metrics_by_id.items())]
         columns.append('location')
 
-        # super().__init__(data=None, index=None, columns=columns)
-
         rows = self._add_measurements(measurements)
-        index = [str(_['location']) for _ in rows]
-        data = rows
-        super().__init__(data=data, index=index, columns=columns)
+        super().__init__(data=rows, index=[str(_['location']) for _ in rows], columns=columns)
         self._fix_root_measurement()
         self._add_percentage_columns()
 
     def _evaluate_measurements_data(self, data: dict) -> dict:
-        globals_ = None
-        locals_ = {'data': data, 'pow': pow, 'sqrt': math.sqrt, 'self': self}
-        assert 'data' in locals_
-        processed_data = {column: eval(self._metrics_formulas[column], globals_, locals_)
-                          if column in self._metrics_formulas else entry
-                          for column, entry in data.items()}
+        processed_data = {}
+        for column, entry in data.items():
+            if column not in self._metrics_formulas:
+                processed_data[column] = entry
+                continue
+            formula_code, formula = self._metrics_formulas[column]
+            try:
+                processed_data[column] = formula(self, data)
+            except ValueError as error:
+                raise ValueError(
+                    'error while evaluating """{}""" to compute "{}" in row {}'
+                    .format(formula_code, column, data)) from error
         return processed_data
 
     def _add_measurements(self, measurements: ET.Element, location: tuple = (), *,
                           depth: int = 0, add_local: bool = True) -> t.List[pd.Series]:
         rows = []
+
+        # split measurements into M and non-M items
+        local_measurements = {}
+        nonlocal_measurements = []
+        for measurement in measurements:
+            if measurement.tag == 'M':
+                local_measurements[self._metrics_by_id[int(measurement.attrib['n'])]] = \
+                    float(measurement.attrib['v'])
+            else:
+                nonlocal_measurements.append(measurement)
+
         if add_local:
-            data = {self._metrics_by_id[int(metric.attrib['n'])]: float(metric.attrib['v'])
-                    for metric in measurements if metric.tag == 'M'}
-            data['location'] = location
-            data = self._evaluate_measurements_data(data)
-            # series = pd.Series(data=data, name=location)
-            # self.loc[str(location)] = series
-            rows.append(data)
+            local_measurements['location'] = location
+            local_measurements = self._evaluate_measurements_data(local_measurements)
+            rows.append(local_measurements)
 
         if self._max_depth is not None and depth >= self._max_depth:
             return rows
 
-        add_local = True
-        for measurement in measurements:
-            if measurement.tag == 'M':  # metric data
-                continue
+        for measurement in nonlocal_measurements:
+            add_local = True
             if measurement.tag == 'PF':  # procedure frame
                 _ = '{}.{}'.format(self._procedures_by_id[int(measurement.attrib['n'])],
                                    measurement.attrib['i'])
@@ -151,47 +192,57 @@ class HPCtoolkitDataFrame(pd.DataFrame):
 
     def _add_percentage_columns(self, base_columns: t.Dict[str, str] = None) -> None:
         if base_columns is None:
-            base_columns = {
-                'CPUTIME (usec):Mean (I)': 'parent',
-                'CPUTIME (usec):Mean (E)': 'total'}
-        for base_column, method in base_columns.items():
-            self._add_percentage_column(base_column, '{} %'.format(base_column), method)
+            base_columns = (
+                ('CPUTIME (usec):Mean (I)', 'total'), ('CPUTIME (usec):Mean (I)', 'parent'))
+        for base_column, method in base_columns:
+            self._add_percentage_column(
+                base_column, '{} ratio of {}'.format(base_column, method), method)
 
     def _add_percentage_column(self, base_column: str, column_name: str, method: str) -> None:
         assert base_column in self.columns, base_column
         column_index = self.columns.get_loc(base_column) + 1
         simple_self = self[[base_column, 'location']]
         if method == 'total':
-            total = simple_self[simple_self['location'] == ()][base_column].item()
-            data = [row[base_column] / total for _, row in simple_self.iterrows()]
+            filtered = simple_self.loc[['()']]
+            total = filtered[base_column].item()
+            data = [row.at[base_column] / total for _, row in simple_self.iterrows()]
         else:
             assert method == 'parent'
             data = []
+            _cache = {}
             for _, row in simple_self.iterrows():
-                value = row[base_column]
-                base_location = row['location']
-                base = 0.0
-                while base < value:
+                value = row.at[base_column]
+                base_location = row.at['location']
+                base = None
+                while base is None or base < value:
                     base_location = base_location[:-1]
-                    filtered = simple_self[simple_self['location'] == base_location]
-                    if len(filtered) == 0:
+                    if base_location in _cache:
+                        base = _cache[base_location]
+                        break
+                    try:
+                        filtered = simple_self.loc[[str(base_location)]]
+                    except KeyError:
+                        _LOG.exception('no measurements for location %s', base_location)
                         continue
                     assert len(filtered) == 1, \
-                        (base_column, row['location'], base_location, filtered)
+                        (base_column, row.at['location'], base_location, filtered)
                     base = filtered[base_column].item()
+                    _cache[base_location] = base
                 data.append(value / base)
+            del _cache
         self.insert(column_index, column_name, data)
 
     @property
     def compact(self):
         compact_columns = [
-            'CPUTIME (usec):Mean (I)', 'CPUTIME (usec):Mean (I) %',
-            'CPUTIME (usec):Mean (E)', 'CPUTIME (usec):Mean (E) %']
+            'CPUTIME (usec):Mean (I)',
+            'CPUTIME (usec):Mean (I) ratio of total', 'CPUTIME (usec):Mean (I) ratio of parent']
         return self[compact_columns]
 
     def select_basic(self, category: str) -> pd.DataFrame:
         selected_columns = [
-            r'CPUTIME (usec):Sum ({})', r'CPUTIME (usec):Mean ({})', r'CPUTIME (usec):Mean ({}) %',
+            r'CPUTIME (usec):Mean ({})',
+            r'CPUTIME (usec):Mean ({}) ratio of total', r'CPUTIME (usec):Mean ({}) ratio of parent',
             r'CPUTIME (usec):Min ({})', r'CPUTIME (usec):Max ({})', r'CPUTIME (usec):StdDev ({})']
         selected_columns = [_.format(category) for _ in selected_columns]
         return self[selected_columns]
@@ -204,46 +255,43 @@ class HPCtoolkitDataFrame(pd.DataFrame):
     def basic_e(self):
         return self.select_basic('E')
 
-    def at_path(self, location_prefix: tuple):
-
-        def location_prefix_filter(series: pd.Series, location_prefix: tuple):
-            series_location = series['location']
-            if len(series_location) < len(location_prefix) \
-                    or series_location[:len(location_prefix)] != location_prefix:
-                return False
-            return True
-
-        mask = self.apply(location_prefix_filter, axis=1, args=(location_prefix,))
+    def at_paths(self, *fragments, prefix: tuple = (), suffix: tuple = ()) -> pd.DataFrame:
+        mask = self.apply(_location_filter, axis=1, args=(fragments, prefix, suffix))
         return self[mask]
 
-    def hot_path(self, location: tuple = (), threshold: int = 0.1):
-        base_column = 'CPUTIME (usec):Mean (I) %'
+    def at_depths(self, min_depth: t.Optional[int] = None,
+                  max_depth: t.Optional[int] = None) -> pd.DataFrame:
+        mask = self.apply(_depth_filter, axis=1, args=(min_depth, max_depth))
+        return self[mask]
+
+    def at_depth(self, depth: int) -> pd.DataFrame:
+        return self.at_depths(depth, depth)
+
+    def hot_path(self, location: tuple = (), threshold: int = 0.05) -> pd.DataFrame:
+        base_column = 'CPUTIME (usec):Mean (I) ratio of total'
         simple_self = self[[base_column, 'location']]
-
-        def location_prefix_filter(series: pd.Series, location_prefix: tuple):
-            series_location = series['location']
-            if len(series_location) < len(location_prefix) \
-                    or series_location[:len(location_prefix)] != location_prefix:
-                return False
-            return True
-
-        def depth_filter(series: pd.Series, depth: int):
-            if len(series['location']) != depth:
-                return False
-            return True
-
         hot_locations = []
 
         while True:
             hot_locations.append(location)
-            mask = simple_self.apply(location_prefix_filter, axis=1, args=(location,))
-            simple_self = simple_self[mask]
-            depth_mask = simple_self.apply(depth_filter, axis=1, args=(len(location) + 1,))
-            at_depth = simple_self[depth_mask]
+
+            simple_self = simple_self.at_paths(prefix=location)
+            _LOG.debug('%i at target location', len(simple_self))
+            at_depth = simple_self.at_depth(len(location) + 1)
+            _LOG.debug('%i at depth %i', len(at_depth), len(location) + 1)
+
+            if at_depth.empty:
+                break
+
             hottest_index = at_depth[base_column].idxmax()
             hottest_row = simple_self.loc[hottest_index]
-            location = hottest_row['location']
-            if hottest_row[base_column] < threshold:
+            location = hottest_row.at['location']
+            if hottest_row.at[base_column] < threshold:
                 break
 
         return self[self.location.isin(hot_locations)]
+
+
+# HPCtoolkitDataFrame(path=pathlib.Path(
+#    '/nfs2/mbysiek/Projects/docker-transpyle-flash/results/'
+#    'profile_20180905-120519_subset_Sedov_base_a_db/experiment.xml')).hot_path()[-2:].compact
