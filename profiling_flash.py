@@ -98,19 +98,21 @@ def hpctoolkit_summarize(executable: pathlib.Path, results_path: pathlib.Path,
                          test_name: str, phase_name: str = 'summarize'):
     hpcstruct = 'hpcstruct'  # shutil.which('hpcstruct')
     hpcprof = 'hpcprof'  # shutil.which('hpcprof')
-    # source_path.joinpath('*')
+    # './*'
     struct_path = results_path.joinpath(executable.name + '.hpcstruct')
-    hpcstruct_command = '{} --verbose -I {} -o {} {}'.format(
-        hpcstruct, './\'*\'', struct_path, executable)
+    hpcstruct_command = '{} -I "{}" --verbose -o {} {}'.format(
+        hpcstruct, source_path.joinpath('*'), struct_path, executable)
     _run_and_check(hpcstruct_command, source_path,
                    test_name=test_name, phase_name='{}.hpcstruct'.format(phase_name))
     # hpcprof -I "${source}" "${results_path}" \
     #   -S "${results_path}/flash4.hpcstruct" \
     #   -M stats \
     #   -o "${results_path}_db"
-    # source_path.joinpath('+')
-    hpcprof_command = '{} --verbose -I "{}" {} -S {} -M stats -o {}'.format(
-        hpcprof, './+', results_path, struct_path, profile_db_path(test_name=test_name))
+    # './+'
+    hpcprof_command = '{} -I "{}" {} -S {} -M stats -o {}'.format(
+        hpcprof, source_path.joinpath('+'), results_path, struct_path,
+        profile_db_path(test_name=test_name))
+    # TODO: --replace-path '<old-path>=<new-path>'
     _run_and_check(hpcprof_command, source_path,
                    test_name=test_name, phase_name='{}.hpcprof'.format(phase_name))
 
