@@ -19,24 +19,25 @@ _NOW = None
 
 _JUST_RAN = None
 
+FLASH_SITE = 'spack'
+
+HPCRUN_EXE = 'hpcrun'  # shutil.which('hpcrun')
+HPCSTRUCT_EXE = 'hpcstruct'  # shutil.which('hpcstruct')
+HPCPROF_EXE = 'hpcprof'  # shutil.which('hpcprof')
+
 
 def _run_and_check(cmd: str, wd: pathlib.Path, *,
                    test_name: str, phase_name: str):
     _LOG.warning('%s.%s: running "%s" with wd="%s"', test_name, phase_name, cmd, wd)
-    # _dir = os.getcwd()
-    # os.chdir(str(wd))
     cmd_result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                 shell=True, cwd=str(wd))
-    # os.chdir(_dir)
     log_dir = logs_path(test_name=test_name)
     log_dir.mkdir(parents=True, exist_ok=True)
     cmd_stdout = cmd_result.stdout.decode()
-    with open(str(pathlib.Path(log_dir, '{}_stdout.log'.format(phase_name))),
-              'w') as cmd_stdout_file:
+    with pathlib.Path(log_dir, '{}_stdout.log'.format(phase_name)).open('w') as cmd_stdout_file:
         cmd_stdout_file.write(cmd_stdout)
     cmd_stderr = cmd_result.stderr.decode()
-    with open(str(pathlib.Path(log_dir, '{}_stderr.log'.format(phase_name))),
-              'w') as cmd_stderr_file:
+    with pathlib.Path(log_dir, '{}_stderr.log'.format(phase_name)).open('w') as cmd_stderr_file:
         cmd_stderr_file.write(cmd_stderr)
     cmd_msg = None
     if cmd_result.returncode != 0:
@@ -47,15 +48,20 @@ def _run_and_check(cmd: str, wd: pathlib.Path, *,
     assert cmd_result.returncode == 0, cmd_msg
 
 
-def make_sfocu():
-    return '''cd $FLASH_BASE/tools/sfocu
-    make -f Makefile.hello clean
-    make -f Makefile.hello'''
+def make_sfocu(flash_dir: pathlib.Path):
+    sfocu_dir = flash_dir.joinpath('tools', 'sfocu')
+    _run_and_check('make -f Makefile.hello clean', sfocu_dir,
+                   test_name='sfocu', phase_name='clean')
+    _run_and_check('make -f Makefile.hello', sfocu_dir,
+                   test_name='sfocu', phase_name='make')
 
 
-def setup_flash(experiment, setup_dir, *,
+def setup_flash(experiment, objdir: str, setup_dir, *,
                 test_name: str, phase_name: str = 'setup'):
-    _run_and_check('./setup -site spack ' + experiment, setup_dir,
+    setup_command = './setup -site {} {}'.format(FLASH_SITE, experiment)
+    if objdir != 'object':
+        setup_command += ' -objdir={}'.format(objdir)
+    _run_and_check(setup_command, setup_dir,
                    test_name=test_name, phase_name=phase_name)
 
 
@@ -77,14 +83,13 @@ def hpctoolkit_profile(executable: pathlib.Path, results_path: pathlib.Path, sam
     assert isinstance(executable, pathlib.Path), type(executable)
     if events is None:
         events = {}
-    hpcrun = 'hpcrun'  # shutil.which('hpcrun')
     results_path.parent.mkdir(exist_ok=True)
     events_options = [
         ' -e {}{}'.format(event, '' if rate is True else '@{}'.format(
             rate if isinstance(rate, int) else 'f{}'.format(round(1 / rate))))
         for event, rate in events.items()]
     hpcrun_command = '{}{} -o "{}" {}'.format(
-        hpcrun, ''.join(events_options), results_path, executable)
+        HPCRUN_EXE, ''.join(events_options), results_path, executable)
     if mpi_proc > 0:
         hpcrun_command = 'mpirun -np {} {}'.format(mpi_proc, hpcrun_command)
     _LOG.warning('%s.%s: running the experiment %i times...', test_name, phase_name, sample_size)
@@ -96,23 +101,14 @@ def hpctoolkit_profile(executable: pathlib.Path, results_path: pathlib.Path, sam
 def hpctoolkit_summarize(executable: pathlib.Path, results_path: pathlib.Path,
                          source_path: pathlib.Path, *,
                          test_name: str, phase_name: str = 'summarize'):
-    hpcstruct = 'hpcstruct'  # shutil.which('hpcstruct')
-    hpcprof = 'hpcprof'  # shutil.which('hpcprof')
-    # './*'
     struct_path = results_path.joinpath(executable.name + '.hpcstruct')
     hpcstruct_command = '{} -I "{}" --verbose -o {} {}'.format(
-        hpcstruct, source_path.joinpath('*'), struct_path, executable)
+        HPCSTRUCT_EXE, source_path.joinpath('*'), struct_path, executable)
     _run_and_check(hpcstruct_command, source_path,
                    test_name=test_name, phase_name='{}.hpcstruct'.format(phase_name))
-    # hpcprof -I "${source}" "${results_path}" \
-    #   -S "${results_path}/flash4.hpcstruct" \
-    #   -M stats \
-    #   -o "${results_path}_db"
-    # './+'
-    hpcprof_command = '{} -I "{}" {} -S {} -M stats -o {}'.format(
-        hpcprof, source_path.joinpath('+'), results_path, struct_path,
+    hpcprof_command = '{} -I "{}" --replace-path "{}=." {} -S {} -M stats -o {}'.format(
+        HPCPROF_EXE, source_path.joinpath('+'), source_path, results_path, struct_path,
         profile_db_path(test_name=test_name))
-    # TODO: --replace-path '<old-path>=<new-path>'
     _run_and_check(hpcprof_command, source_path,
                    test_name=test_name, phase_name='{}.hpcprof'.format(phase_name))
 
@@ -125,8 +121,9 @@ def profile_flash(app_name: str, executable: pathlib.Path, source_path: pathlib.
     hpctoolkit_summarize(executable, results_path, source_path, test_name=test_name)
 
 
-def profile_experiment(app_name: str, experiment: str, branch: str, sample_size: int, *,
-                       rebuild: bool = None,
+def profile_experiment(app_name: str, experiment: str, branch: str, objdir: str,
+                       sample_size: int, *,
+                       rebuild: bool = None, clean: bool = False,
                        test_name: str, **kwargs):
     global _JUST_RAN
     if rebuild is None and _JUST_RAN \
@@ -144,17 +141,18 @@ def profile_experiment(app_name: str, experiment: str, branch: str, sample_size:
         _LOG.warning('%s: checking out %s', test_name, branch)
         repo.git.checkout(branch)
         rebuild = True
-    build_dir = setup_dir.joinpath('object')
+    build_dir = setup_dir.joinpath(objdir)
     executable = build_dir.joinpath('flash4')
     if rebuild is not False:
-        setup_flash(experiment, setup_dir,
+        setup_flash(experiment, objdir, setup_dir,
                     test_name=test_name)
         make_flash(build_dir,
                    test_name=test_name)
     profile_flash(app_name, executable, app_dir, sample_size, **kwargs,
                   test_name=test_name)
-    clean_flash(build_dir,
-                test_name=test_name)
+    if clean:
+        clean_flash(build_dir,
+                    test_name=test_name)
     _JUST_RAN = (datetime.datetime.now(), app_name, experiment, branch)
 
 

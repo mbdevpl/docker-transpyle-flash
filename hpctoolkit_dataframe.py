@@ -12,6 +12,28 @@ import pandas as pd
 
 _LOG = logging.getLogger(__name__)
 
+_MEASUREMENT_TYPES = {
+    'PF': 'procedure frame',
+    'C': 'callsite',
+    'Pr': 'procedure',
+    'S': 'statement',
+    'L': 'loop'}
+
+_LOCATION_TYPES = {
+    'lm': 'module',
+    'f': 'file',
+    'l': 'line',
+    'n': 'procedure',
+    'i': 'id',
+    }
+
+_LOCATION_COLUMNS = [
+    'callpath', 'module path', 'module', 'file path', 'file', 'line', 'procedure', 'id',
+    'type']
+
+# _ROOT_INDEX = '()'
+_ROOT_INDEX = -1
+
 
 def _read_xml(path: pathlib.Path) -> ET.ElementTree:
     with path.open() as xml_file:
@@ -39,32 +61,32 @@ def _derive_metrics_formulas(
     return metrics_formulas
 
 
-def _location_filter(series: pd.Series, fragments: t.Sequence[tuple],
+def _callpath_filter(series: pd.Series, fragments: t.Sequence[tuple],
                      prefix: tuple, suffix: tuple) -> bool:
-    location = series.at['location']
+    callpath = series.at['callpath']
     for fragment in fragments:
         if fragment:
             raise NotImplementedError('filtering by arbitrary fragment not supported')
     if prefix:
-        if len(location) < len(prefix):
+        if len(callpath) < len(prefix):
             return False
-        for location_item, prefix_item in zip(location[:len(prefix)], prefix):
-            if not (prefix_item.fullmatch(location_item) if isinstance(prefix_item, t.Pattern)
-                    else prefix_item == location_item):
+        for callpath_item, prefix_item in zip(callpath[:len(prefix)], prefix):
+            if not (prefix_item.fullmatch(callpath_item) if isinstance(prefix_item, t.Pattern)
+                    else prefix_item == callpath_item):
                 return False
     if suffix:
-        if len(location) < len(suffix):
+        if len(callpath) < len(suffix):
             return False
-        for location_item, suffix_item in zip(location[-len(suffix):], suffix):
-            if not (suffix_item.fullmatch(location_item) if isinstance(suffix_item, t.Pattern)
-                    else suffix_item == location_item):
+        for callpath_item, suffix_item in zip(callpath[-len(suffix):], suffix):
+            if not (suffix_item.fullmatch(callpath_item) if isinstance(suffix_item, t.Pattern)
+                    else suffix_item == callpath_item):
                 return False
     return True
 
 
 def _depth_filter(
         series: pd.Series, min_depth: t.Optional[int], max_depth: t.Optional[int]) -> bool:
-    depth = len(series.at['location'])
+    depth = len(series.at['callpath'])
     if min_depth is not None and depth < min_depth or max_depth is not None and depth > max_depth:
         return False
     return True
@@ -74,7 +96,8 @@ class HPCtoolkitDataFrame(pd.DataFrame):
 
     """Extension of pandas DataFrame tailored to HPCtoolkit"""
 
-    _metadata = ['_metrics_by_id', '_metrics_formulas', '_procedures_by_id', '_max_depth']
+    _metadata = ['_metrics_by_id', '_metrics_formulas', '_modules_by_id', '_files_by_id',
+                 '_procedures_by_id', '_max_depth']
 
     _skip_callsite = True
     """Skip over callsite nodes to avoid over-complicating the calltree."""
@@ -102,6 +125,16 @@ class HPCtoolkitDataFrame(pd.DataFrame):
         self._metrics_formulas = _derive_metrics_formulas(metrics)
         _LOG.info('%s', pprint.pformat(self._metrics_formulas))
 
+        modules = profile_data.find('./SecHeader/LoadModuleTable')
+        _LOG.debug('%s', [(_, _.attrib) for _ in modules])
+        self._modules_by_id = {int(_.attrib['i']): pathlib.Path(_.attrib['n']) for _ in modules}
+        _LOG.info('%s', pprint.pformat(self._modules_by_id))
+
+        files = profile_data.find('./SecHeader/FileTable')
+        _LOG.debug('%s', [(_, _.attrib) for _ in files])
+        self._files_by_id = {int(_.attrib['i']): pathlib.Path(_.attrib['n']) for _ in files}
+        _LOG.info('%s', pprint.pformat(self._files_by_id))
+
         procedures = profile_data.find('./SecHeader/ProcedureTable')
         _LOG.debug('%s', [(_, _.attrib) for _ in procedures])
         self._procedures_by_id = {int(_.attrib['i']): _.attrib['n'] for _ in procedures}
@@ -111,11 +144,15 @@ class HPCtoolkitDataFrame(pd.DataFrame):
         _LOG.debug('%s', [(_, _.attrib) for _ in measurements])
 
         columns = [metric for _, metric in sorted(self._metrics_by_id.items())]
-        columns.append('location')
+        columns += _LOCATION_COLUMNS
 
         rows = self._add_measurements(measurements)
-        super().__init__(data=rows, index=[str(_['location']) for _ in rows], columns=columns)
+        index = [_['id'] for _ in rows]
+        assert len(index) == len(set(index)), index
+        super().__init__(data=rows, index=index, columns=columns)
         self._fix_root_measurement()
+        # self['id'] = pd.to_numeric(self['id'], errors='coerce', downcast='integer')
+        # self['id'] = self['id'].astype(int)
         self._add_percentage_columns()
 
     def _evaluate_measurements_data(self, data: dict) -> dict:
@@ -133,8 +170,10 @@ class HPCtoolkitDataFrame(pd.DataFrame):
                     .format(formula_code, column, data)) from error
         return processed_data
 
-    def _add_measurements(self, measurements: ET.Element, location: tuple = (), *,
-                          depth: int = 0, add_local: bool = True) -> t.List[pd.Series]:
+    def _add_measurements(self, measurements: ET.Element, location: t.Dict[str, t.Any] = None, *,
+                          depth: t.Optional[int] = 0, add_local: bool = True) -> t.List[pd.Series]:
+        if location is None:
+            location = {'line': 0, 'id': -1, 'callpath': ()}
         rows = []
 
         # split measurements into M and non-M items
@@ -148,38 +187,59 @@ class HPCtoolkitDataFrame(pd.DataFrame):
                 nonlocal_measurements.append(measurement)
 
         if add_local:
-            local_measurements['location'] = location
             local_measurements = self._evaluate_measurements_data(local_measurements)
+            if location is not None:
+                local_measurements.update(location)
             rows.append(local_measurements)
 
         if self._max_depth is not None and depth >= self._max_depth:
             return rows
 
         for measurement in nonlocal_measurements:
-            add_local = True
-            if measurement.tag == 'PF':  # procedure frame
-                _ = '{}.{}'.format(self._procedures_by_id[int(measurement.attrib['n'])],
-                                   measurement.attrib['i'])
-                new_location = (*location, _)
-            elif measurement.tag == 'C':
-                if self._skip_callsite:
-                    new_location = location
-                    add_local = False
-                    depth -= 1
-                else:
-                    _ = '<callsite {}.{}>'.format(measurement.attrib['s'], measurement.attrib['i'])
-                    new_location = (*location, _)
-            elif measurement.tag == 'S':
-                _ = '<statement {}>'.format(measurement.attrib['s'])
-                new_location = (*location, _)
-            elif measurement.tag == 'L':
-                _ = '<loop {}.{}>'.format(measurement.attrib['s'], measurement.attrib['i'])
-                new_location = (*location, _)
-            else:
+            if measurement.tag not in _MEASUREMENT_TYPES:
                 raise NotImplementedError(
                     (measurement.tag, measurement.attrib, [_ for _ in measurement]))
+
+            if self._skip_callsite and measurement.tag == 'C':
+                rows += self._add_measurements(measurement, location,
+                                               depth=depth, add_local=False)
+                continue
+
+            new_location = {}
+            new_location.update(location)
+            # callpath_suffix = ''
+            if 'lm' in measurement.attrib:
+                _ = self._modules_by_id[int(measurement.attrib['lm'])]
+                new_location[_LOCATION_TYPES['lm'] + ' path'] = _
+                new_location[_LOCATION_TYPES['lm']] = _.name
+                # callpath_suffix += '{}'.format(_.name)
+            if 'f' in measurement.attrib:
+                _ = self._files_by_id[int(measurement.attrib['f'])]
+                new_location[_LOCATION_TYPES['f'] + ' path'] = _
+                new_location[_LOCATION_TYPES['f']] = _.name
+                # callpath_suffix += ' {}'.format(_.name)
+            if 'l' in measurement.attrib:
+                _ = int(measurement.attrib['l'])
+                new_location[_LOCATION_TYPES['l']] = _
+                # callpath_suffix += ':{}'.format(_)
+            if 'n' in measurement.attrib:
+                _ = self._procedures_by_id[int(measurement.attrib['n'])]
+                new_location[_LOCATION_TYPES['n']] = _
+                # callpath_suffix += ' {}()'.format(_)
+            if 'i' in measurement.attrib:
+                _ = int(measurement.attrib['i'])
+                new_location[_LOCATION_TYPES['i']] = _
+                # callpath_suffix += ' {}'.format(_)
+            assert 'id' in new_location, \
+                (measurement.tag, measurement.attrib, [_ for _ in measurement])
+            # assert callpath_suffix, \
+            #    (measurement.tag, measurement.attrib, [_ for _ in measurement])
+            # new_location['callpath'] = (*location['callpath'], callpath_suffix)
+            new_location['type'] = _MEASUREMENT_TYPES[measurement.tag]
+            new_location['callpath'] = (*location['callpath'], new_location['id'])
+
             rows += self._add_measurements(measurement, new_location,
-                                           depth=depth + 1, add_local=add_local)
+                                           depth=depth + 1, add_local=True)
 
         return rows
 
@@ -188,7 +248,7 @@ class HPCtoolkitDataFrame(pd.DataFrame):
             r'CPUTIME (usec):Sum ({})', r'CPUTIME (usec):Mean ({})',
             r'CPUTIME (usec):Min ({})', r'CPUTIME (usec):Max ({})', r'CPUTIME (usec):StdDev ({})']
         for column in selected_columns:
-            self.at['()', column.format('E')] = self.at['()', column.format('I')]
+            self.at[_ROOT_INDEX, column.format('E')] = self.at[_ROOT_INDEX, column.format('I')]
 
     def _add_percentage_columns(self, base_columns: t.Dict[str, str] = None) -> None:
         if base_columns is None:
@@ -201,9 +261,9 @@ class HPCtoolkitDataFrame(pd.DataFrame):
     def _add_percentage_column(self, base_column: str, column_name: str, method: str) -> None:
         assert base_column in self.columns, base_column
         column_index = self.columns.get_loc(base_column) + 1
-        simple_self = self[[base_column, 'location']]
+        simple_self = self[[base_column, 'callpath']]
         if method == 'total':
-            filtered = simple_self.loc[['()']]
+            filtered = simple_self.loc[[_ROOT_INDEX]]
             total = filtered[base_column].item()
             data = [row.at[base_column] / total for _, row in simple_self.iterrows()]
         else:
@@ -212,22 +272,22 @@ class HPCtoolkitDataFrame(pd.DataFrame):
             _cache = {}
             for _, row in simple_self.iterrows():
                 value = row.at[base_column]
-                base_location = row.at['location']
+                base_callpath = row.at['callpath']
                 base = None
                 while base is None or base < value:
-                    base_location = base_location[:-1]
-                    if base_location in _cache:
-                        base = _cache[base_location]
+                    base_callpath = base_callpath[:-1]
+                    if base_callpath in _cache:
+                        base = _cache[base_callpath]
                         break
                     try:
-                        filtered = simple_self.loc[[str(base_location)]]
+                        filtered = simple_self.loc[simple_self['callpath'] == base_callpath]
                     except KeyError:
-                        _LOG.exception('no measurements for location %s', base_location)
+                        _LOG.exception('no measurements for callpath %s', base_callpath)
                         continue
                     assert len(filtered) == 1, \
-                        (base_column, row.at['location'], base_location, filtered)
+                        (base_column, row.at['callpath'], base_callpath, filtered)
                     base = filtered[base_column].item()
-                    _cache[base_location] = base
+                    _cache[base_callpath] = base
                 data.append(value / base)
             del _cache
         self.insert(column_index, column_name, data)
@@ -235,6 +295,7 @@ class HPCtoolkitDataFrame(pd.DataFrame):
     @property
     def compact(self):
         compact_columns = [
+            'module', 'file', 'line', 'procedure', 'type',
             'CPUTIME (usec):Mean (I)',
             'CPUTIME (usec):Mean (I) ratio of total', 'CPUTIME (usec):Mean (I) ratio of parent']
         return self[compact_columns]
@@ -256,7 +317,7 @@ class HPCtoolkitDataFrame(pd.DataFrame):
         return self.select_basic('E')
 
     def at_paths(self, *fragments, prefix: tuple = (), suffix: tuple = ()) -> pd.DataFrame:
-        mask = self.apply(_location_filter, axis=1, args=(fragments, prefix, suffix))
+        mask = self.apply(_callpath_filter, axis=1, args=(fragments, prefix, suffix))
         return self[mask]
 
     def at_depths(self, min_depth: t.Optional[int] = None,
@@ -267,29 +328,29 @@ class HPCtoolkitDataFrame(pd.DataFrame):
     def at_depth(self, depth: int) -> pd.DataFrame:
         return self.at_depths(depth, depth)
 
-    def hot_path(self, location: tuple = (), threshold: int = 0.05) -> pd.DataFrame:
+    def hot_path(self, callpath: tuple = (), threshold: int = 0.05) -> pd.DataFrame:
         base_column = 'CPUTIME (usec):Mean (I) ratio of total'
-        simple_self = self[[base_column, 'location']]
-        hot_locations = []
+        simple_self = self[[base_column, 'callpath']]
+        hot_callpaths = []
 
         while True:
-            hot_locations.append(location)
+            hot_callpaths.append(callpath)
 
-            simple_self = simple_self.at_paths(prefix=location)
-            _LOG.debug('%i at target location', len(simple_self))
-            at_depth = simple_self.at_depth(len(location) + 1)
-            _LOG.debug('%i at depth %i', len(at_depth), len(location) + 1)
+            simple_self = simple_self.at_paths(prefix=callpath)
+            _LOG.debug('%i at target callpath', len(simple_self))
+            at_depth = simple_self.at_depth(len(callpath) + 1)
+            _LOG.debug('%i at depth %i', len(at_depth), len(callpath) + 1)
 
             if at_depth.empty:
                 break
 
             hottest_index = at_depth[base_column].idxmax()
             hottest_row = simple_self.loc[hottest_index]
-            location = hottest_row.at['location']
+            callpath = hottest_row.at['callpath']
             if hottest_row.at[base_column] < threshold:
                 break
 
-        return self[self.location.isin(hot_locations)]
+        return self[self.callpath.isin(hot_callpaths)]
 
 
 # HPCtoolkitDataFrame(path=pathlib.Path(
