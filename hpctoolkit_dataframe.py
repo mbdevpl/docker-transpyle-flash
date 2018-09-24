@@ -305,11 +305,17 @@ class HPCtoolkitDataFrame(pd.DataFrame):
 
     @property
     def compact(self):
-        compact_columns = [
-            'module', 'file', 'line', 'procedure', 'type',
-            'CPUTIME (usec):Mean (I)',
-            'CPUTIME (usec):Mean (I) ratio of total', 'CPUTIME (usec):Mean (I) ratio of parent']
-        return self[compact_columns]
+        location_columns = ['module', 'file', 'line', 'procedure', 'type']
+        if 'CPUTIME (usec):Mean (I)' in self.columns:
+            compact_columns = ['CPUTIME (usec):Mean (I)',
+                               'CPUTIME (usec):Mean (I) ratio of total',
+                               'CPUTIME (usec):Mean (I) ratio of parent']
+        else:
+            compact_columns = ['CPUTIME (usec):Sum (I)',
+                               'CPUTIME (usec):Sum (I) ratio of total',
+                               'CPUTIME (usec):Sum (I) ratio of parent']
+
+        return self[location_columns + compact_columns]
 
     def select_basic(self, category: str) -> pd.DataFrame:
         selected_columns = [
