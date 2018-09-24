@@ -248,13 +248,24 @@ class HPCtoolkitDataFrame(pd.DataFrame):
             r'CPUTIME (usec):Sum ({})', r'CPUTIME (usec):Mean ({})',
             r'CPUTIME (usec):Min ({})', r'CPUTIME (usec):Max ({})', r'CPUTIME (usec):StdDev ({})']
         for column in selected_columns:
-            self.at[_ROOT_INDEX, column.format('E')] = self.at[_ROOT_INDEX, column.format('I')]
+            try:
+                self.at[_ROOT_INDEX, column.format('E')] = self.at[_ROOT_INDEX, column.format('I')]
+            except KeyError:
+                _LOG.debug('column pair matching "%s" not found, skipping', column, exc_info=1)
+                continue
 
     def _add_percentage_columns(self, base_columns: t.Dict[str, str] = None) -> None:
         if base_columns is None:
-            base_columns = (
-                ('CPUTIME (usec):Mean (I)', 'total'), ('CPUTIME (usec):Mean (I)', 'parent'))
+            if 'CPUTIME (usec):Mean (I)' in self.columns:
+                base_column = 'CPUTIME (usec):Mean (I)'
+            else:
+                base_column = 'CPUTIME (usec):Sum (I)'
+            base_columns = ((base_column, 'total'), (base_column, 'parent'))
         for base_column, method in base_columns:
+            if base_column not in self.columns:
+                _LOG.warning('skipping adding percentages to column "%s" -- no such column',
+                             base_column)
+                continue
             self._add_percentage_column(
                 base_column, '{} ratio of {}'.format(base_column, method), method)
 
@@ -329,7 +340,10 @@ class HPCtoolkitDataFrame(pd.DataFrame):
         return self.at_depths(depth, depth)
 
     def hot_path(self, callpath: tuple = (), threshold: int = 0.05) -> pd.DataFrame:
-        base_column = 'CPUTIME (usec):Mean (I) ratio of total'
+        if 'CPUTIME (usec):Mean (I) ratio of total' in self.columns:
+            base_column = 'CPUTIME (usec):Mean (I) ratio of total'
+        else:
+            base_column = 'CPUTIME (usec):Sum (I) ratio of total'
         simple_self = self[[base_column, 'callpath']]
         hot_callpaths = []
 
