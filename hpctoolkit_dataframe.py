@@ -8,6 +8,7 @@ import re
 import typing as t
 import xml.etree.ElementTree as ET
 
+import ordered_set
 import pandas as pd
 
 _LOG = logging.getLogger(__name__)
@@ -31,7 +32,17 @@ _LOCATION_COLUMNS = [
     'callpath', 'module path', 'module', 'file path', 'file', 'line', 'procedure', 'id',
     'type']
 
-# _ROOT_INDEX = '()'
+_COMPACT_LOCATION_COLUMNS = ['module', 'file', 'line', 'procedure', 'type']
+
+_LOCATION_DATA_TRANSFORMERS = {
+    ('lm', _LOCATION_TYPES['lm'] + ' path'): lambda self, data: self._modules_by_id[int(data)],
+    ('lm', None): lambda self, data: self._modules_by_id[int(data)].name,
+    ('f', _LOCATION_TYPES['f'] + ' path'): lambda self, data: self._files_by_id[int(data)],
+    ('f', None): lambda self, data: self._files_by_id[int(data)].name,
+    ('l', None): lambda _, data: int(data),
+    ('n', None): lambda self, data: self._procedures_by_id[int(data)],
+    ('i', None): lambda _, data: int(data)}
+
 _ROOT_INDEX = -1
 
 
@@ -61,25 +72,46 @@ def _derive_metrics_formulas(
     return metrics_formulas
 
 
-def _callpath_filter(series: pd.Series, fragments: t.Sequence[tuple],
-                     prefix: tuple, suffix: tuple) -> bool:
+def _callpath_filter(series: pd.Series, fragments: t.Sequence[t.Sequence[int]],
+                     prefix: t.Sequence[int], suffix: t.Sequence[int]) -> bool:
     callpath = series.at['callpath']
-    for fragment in fragments:
-        if fragment:
-            raise NotImplementedError('filtering by arbitrary fragment not supported')
+    if fragments:
+        raise NotImplementedError(
+            'filtering by arbitrary fragment "{}" not supported'.format(fragments))
+    # for fragment in fragments:
+    #    assert fragment, fragments
+    #    # TODO: implement
+    if prefix and (len(callpath) < len(prefix) or callpath[:len(prefix)] != prefix):
+        return False
+    if suffix and (len(callpath) < len(suffix) or callpath[-len(suffix):] != suffix):
+        return False
+    return True
+
+
+def _str_or_regex_sequence_filter(
+        series: pd.Series, column: str, fragments: t.Sequence[t.Sequence[t.Union[t.Pattern, str]]],
+        prefix: t.Sequence[t.Union[t.Pattern, str]],
+        suffix: t.Sequence[t.Union[t.Pattern, str]]) -> bool:
+    value = series.at[column]
+    if fragments:
+        raise NotImplementedError(
+            'filtering by arbitrary fragment "{}" not supported'.format(fragments))
+    # for fragment in fragments:
+    #    assert fragment, fragments
+    #    # TODO: implement
     if prefix:
-        if len(callpath) < len(prefix):
+        if len(value) < len(prefix):
             return False
-        for callpath_item, prefix_item in zip(callpath[:len(prefix)], prefix):
-            if not (prefix_item.fullmatch(callpath_item) if isinstance(prefix_item, t.Pattern)
-                    else prefix_item == callpath_item):
+        for value_item, prefix_item in zip(value[:len(prefix)], prefix):
+            if not (prefix_item.fullmatch(value_item) if isinstance(prefix_item, t.Pattern)
+                    else prefix_item == value_item):
                 return False
     if suffix:
-        if len(callpath) < len(suffix):
+        if len(value) < len(suffix):
             return False
-        for callpath_item, suffix_item in zip(callpath[-len(suffix):], suffix):
-            if not (suffix_item.fullmatch(callpath_item) if isinstance(suffix_item, t.Pattern)
-                    else suffix_item == callpath_item):
+        for value_item, suffix_item in zip(value[-len(suffix):], suffix):
+            if not (suffix_item.fullmatch(value_item) if isinstance(suffix_item, t.Pattern)
+                    else suffix_item == value_item):
                 return False
     return True
 
@@ -96,8 +128,17 @@ class HPCtoolkitDataFrame(pd.DataFrame):
 
     """Extension of pandas DataFrame tailored to HPCtoolkit"""
 
-    _metadata = ['_metrics_by_id', '_metrics_formulas', '_modules_by_id', '_files_by_id',
-                 '_procedures_by_id', '_max_depth']
+    _metadata = ['_db_path', '_metrics_by_id', '_metrics_formulas', '_modules_by_id',
+                 '_files_by_id', '_procedures_by_id', '_meaningful_columns']
+    # , '_max_depth'
+
+    _fundamental_column_prefix = 'CPUTIME (usec):'
+
+    _percentage_column_candidates = ['Mean (I)', 'Sum (I)']
+
+    _compact_column_suffixes = ['', ' ratio of total', ' ratio of parent']
+
+    _hot_path_column_suffix = ' ratio of total'
 
     _skip_callsite = True
     """Skip over callsite nodes to avoid over-complicating the calltree."""
@@ -111,49 +152,64 @@ class HPCtoolkitDataFrame(pd.DataFrame):
         if path is None:
             super().__init__(*args, **kwargs)
             return
+        self._db_path = path
 
         profile_data = _read_xml(path).find('./SecCallPathProfile')
-        _LOG.info('%s', profile_data.attrib['n'])
-
-        self._max_depth = max_depth
+        _LOG.info('%s: %s', path, profile_data.attrib['n'])
 
         metrics = profile_data.find('./SecHeader/MetricTable')
-        _LOG.debug('%s', [(_, _.attrib) for _ in metrics])
+        _LOG.debug('%s: %s', path, [(_, _.attrib) for _ in metrics])
         self._metrics_by_id = {int(_.attrib['i']): _.attrib['n'] for _ in metrics}
-        _LOG.info('%s', pprint.pformat(self._metrics_by_id))
+        _LOG.info('%s: %s', path, pprint.pformat(self._metrics_by_id))
 
         self._metrics_formulas = _derive_metrics_formulas(metrics)
-        _LOG.info('%s', pprint.pformat(self._metrics_formulas))
+        _LOG.info('%s: %s', path, pprint.pformat(self._metrics_formulas))
 
         modules = profile_data.find('./SecHeader/LoadModuleTable')
-        _LOG.debug('%s', [(_, _.attrib) for _ in modules])
+        _LOG.debug('%s: %s', path, [(_, _.attrib) for _ in modules])
         self._modules_by_id = {int(_.attrib['i']): pathlib.Path(_.attrib['n']) for _ in modules}
-        _LOG.info('%s', pprint.pformat(self._modules_by_id))
+        _LOG.info('%s: %s', path, pprint.pformat(self._modules_by_id))
 
         files = profile_data.find('./SecHeader/FileTable')
-        _LOG.debug('%s', [(_, _.attrib) for _ in files])
+        _LOG.debug('%s: %s', path, [(_, _.attrib) for _ in files])
         self._files_by_id = {int(_.attrib['i']): pathlib.Path(_.attrib['n']) for _ in files}
-        _LOG.info('%s', pprint.pformat(self._files_by_id))
+        _LOG.info('%s: %s', path, pprint.pformat(self._files_by_id))
 
         procedures = profile_data.find('./SecHeader/ProcedureTable')
-        _LOG.debug('%s', [(_, _.attrib) for _ in procedures])
+        _LOG.debug('%s: %s', path, [(_, _.attrib) for _ in procedures])
         self._procedures_by_id = {int(_.attrib['i']): _.attrib['n'] for _ in procedures}
-        _LOG.info('%s', pprint.pformat(self._procedures_by_id))
+        _LOG.info('%s: %s', path, pprint.pformat(self._procedures_by_id))
 
         measurements = profile_data.find('./SecCallPathProfileData')
-        _LOG.debug('%s', [(_, _.attrib) for _ in measurements])
+        _LOG.debug('%s: %s', path, [(_, _.attrib) for _ in measurements])
 
         columns = [metric for _, metric in sorted(self._metrics_by_id.items())]
-        columns += _LOCATION_COLUMNS
 
-        rows = self._add_measurements(measurements)
+        # customize meanings of columns
+        percentage_column = self._determine_percentage_column_base(columns)
+        compact_columns = [
+            percentage_column + suffix
+            for suffix in self._compact_column_suffixes]
+
+        columns += _LOCATION_COLUMNS
+        compact_columns += _COMPACT_LOCATION_COLUMNS
+
+        self._meaningful_columns = {
+            'percentage': percentage_column,
+            'hot_path': percentage_column + self._hot_path_column_suffix,
+            'compact': compact_columns}
+
+        rows = self._add_measurements(measurements, max_depth=max_depth)
         index = [_['id'] for _ in rows]
         assert len(index) == len(set(index)), index
         super().__init__(data=rows, index=index, columns=columns)
         self._fix_root_measurement()
-        # self['id'] = pd.to_numeric(self['id'], errors='coerce', downcast='integer')
-        # self['id'] = self['id'].astype(int)
         self._add_percentage_columns()
+
+        assert self._meaningful_columns['hot_path'] in self.columns, \
+            (self._meaningful_columns['hot_path'], self.columns)
+        assert all(_ in self.columns for _ in compact_columns), \
+            (compact_columns, self.columns)
 
     def _evaluate_measurements_data(self, data: dict) -> dict:
         processed_data = {}
@@ -166,111 +222,131 @@ class HPCtoolkitDataFrame(pd.DataFrame):
                 processed_data[column] = formula(self, data)
             except ValueError as error:
                 raise ValueError(
-                    'error while evaluating """{}""" to compute "{}" in row {}'
-                    .format(formula_code, column, data)) from error
+                    '{}: error while evaluating """{}""" to compute "{}" in row {}'
+                    .format(self._db_path, formula_code, column, data)) from error
         return processed_data
 
     def _add_measurements(self, measurements: ET.Element, location: t.Dict[str, t.Any] = None, *,
-                          depth: t.Optional[int] = 0, add_local: bool = True) -> t.List[pd.Series]:
-        if location is None:
-            location = {'line': 0, 'id': -1, 'callpath': ()}
-        rows = []
-
+                          max_depth: t.Optional[int] = None,
+                          add_local: bool = True) -> t.List[pd.Series]:
         # split measurements into M and non-M items
         local_measurements = {}
         nonlocal_measurements = []
         for measurement in measurements:
-            if measurement.tag == 'M':
+            if measurement.tag != 'M':
+                nonlocal_measurements.append(measurement)
+            elif add_local:
                 local_measurements[self._metrics_by_id[int(measurement.attrib['n'])]] = \
                     float(measurement.attrib['v'])
-            else:
-                nonlocal_measurements.append(measurement)
+
+        if location is None:
+            location = {'line': 0, 'id': -1, 'callpath': (), 'type': 'root'}
 
         if add_local:
             local_measurements = self._evaluate_measurements_data(local_measurements)
-            if location is not None:
-                local_measurements.update(location)
-            rows.append(local_measurements)
+            local_measurements.update(location)
+            rows = [local_measurements]
+        else:
+            rows = []
 
-        if self._max_depth is not None and depth >= self._max_depth:
+        if max_depth is not None and max_depth <= 0:
             return rows
 
         for measurement in nonlocal_measurements:
             if measurement.tag not in _MEASUREMENT_TYPES:
                 raise NotImplementedError(
-                    (measurement.tag, measurement.attrib, [_ for _ in measurement]))
+                    '{}: measurement type "{}" not recognized:\nattributes={}\nsubnodes={}'
+                    .format(self._db_path, measurement.tag, measurement.attrib,
+                            [_ for _ in measurement]))
 
             if self._skip_callsite and measurement.tag == 'C':
                 rows += self._add_measurements(measurement, location,
-                                               depth=depth, add_local=False)
+                                               max_depth=max_depth, add_local=False)
                 continue
 
             new_location = {}
             new_location.update(location)
-            # callpath_suffix = ''
-            if 'lm' in measurement.attrib:
-                _ = self._modules_by_id[int(measurement.attrib['lm'])]
-                new_location[_LOCATION_TYPES['lm'] + ' path'] = _
-                new_location[_LOCATION_TYPES['lm']] = _.name
-                # callpath_suffix += '{}'.format(_.name)
-            if 'f' in measurement.attrib:
-                _ = self._files_by_id[int(measurement.attrib['f'])]
-                new_location[_LOCATION_TYPES['f'] + ' path'] = _
-                new_location[_LOCATION_TYPES['f']] = _.name
-                # callpath_suffix += ' {}'.format(_.name)
-            if 'l' in measurement.attrib:
-                _ = int(measurement.attrib['l'])
-                new_location[_LOCATION_TYPES['l']] = _
-                # callpath_suffix += ':{}'.format(_)
-            if 'n' in measurement.attrib:
-                _ = self._procedures_by_id[int(measurement.attrib['n'])]
-                new_location[_LOCATION_TYPES['n']] = _
-                # callpath_suffix += ' {}()'.format(_)
-            if 'i' in measurement.attrib:
-                _ = int(measurement.attrib['i'])
-                new_location[_LOCATION_TYPES['i']] = _
-                # callpath_suffix += ' {}'.format(_)
+            for (attrib, field), transformer in _LOCATION_DATA_TRANSFORMERS.items():
+                if attrib not in measurement.attrib:
+                    continue
+                if field is None:
+                    field = _LOCATION_TYPES[attrib]
+                new_location[field] = transformer(self, measurement.attrib[attrib])
+
             assert 'id' in new_location, \
                 (measurement.tag, measurement.attrib, [_ for _ in measurement])
-            # assert callpath_suffix, \
-            #    (measurement.tag, measurement.attrib, [_ for _ in measurement])
-            # new_location['callpath'] = (*location['callpath'], callpath_suffix)
             new_location['type'] = _MEASUREMENT_TYPES[measurement.tag]
             new_location['callpath'] = (*location['callpath'], new_location['id'])
 
-            rows += self._add_measurements(measurement, new_location,
-                                           depth=depth + 1, add_local=True)
+            rows += self._add_measurements(
+                measurement, new_location, max_depth=None if max_depth is None else max_depth - 1,
+                add_local=True)
 
         return rows
 
     def _fix_root_measurement(self):
-        selected_columns = [
-            r'CPUTIME (usec):Sum ({})', r'CPUTIME (usec):Mean ({})',
-            r'CPUTIME (usec):Min ({})', r'CPUTIME (usec):Max ({})', r'CPUTIME (usec):StdDev ({})']
-        for column in selected_columns:
-            try:
-                self.at[_ROOT_INDEX, column.format('E')] = self.at[_ROOT_INDEX, column.format('I')]
-            except KeyError:
-                _LOG.debug('column pair matching "%s" not found, skipping', column, exc_info=1)
+        pattern = re.compile(r'(?P<prefix>.+:.+) \(E\)')
+        column_pairs = []
+        for target_column in self.columns:
+            match = pattern.fullmatch(target_column)
+            if match is None:
                 continue
+            source_column = '{} (I)'.format(match['prefix'])
+            if source_column in self.columns:
+                column_pairs.append((target_column, source_column))
+                continue
+            _LOG.warning('%s: no target column "%s" found for "%s", cannot fix root measurement',
+                         self._db_path, target_column, source_column)
+        for target_column, source_column in column_pairs:
+            self.at[_ROOT_INDEX, target_column] = self.at[_ROOT_INDEX, source_column]
 
-    def _add_percentage_columns(self, base_columns: t.Dict[str, str] = None) -> None:
-        if base_columns is None:
-            if 'CPUTIME (usec):Mean (I)' in self.columns:
-                base_column = 'CPUTIME (usec):Mean (I)'
-            else:
-                base_column = 'CPUTIME (usec):Sum (I)'
-            base_columns = ((base_column, 'total'), (base_column, 'parent'))
-        for base_column, method in base_columns:
-            if base_column not in self.columns:
-                _LOG.warning('skipping adding percentages to column "%s" -- no such column',
-                             base_column)
-                continue
-            self._add_percentage_column(
+    def _determine_percentage_column_base(self, columns) -> str:
+        percentage_column = None
+        for candidate in self._percentage_column_candidates:
+            col = self._fundamental_column_prefix + candidate
+            if col in columns:
+                percentage_column = col
+                break
+        if percentage_column is None:
+            unique_prefixes = list(ordered_set.OrderedSet(_.partition(':')[0] for _ in columns))
+            _LOG.warning(
+                '%s: percentage column candidates %s%s not found, trying %s:%s', self._db_path,
+                self._fundamental_column_prefix, self._percentage_column_candidates,
+                unique_prefixes, self._percentage_column_candidates)
+            for prefix in unique_prefixes:
+                for candidate in self._percentage_column_candidates:
+                    col = '{}:{}'.format(prefix, candidate)
+                    if col in columns:
+                        percentage_column = col
+                        break
+                if percentage_column is not None:
+                    break
+        assert percentage_column is not None, columns
+        return percentage_column
+
+    def _add_percentage_columns(
+            self, columns_and_methods: t.Sequence[t.Tuple[str, str]] = None) -> None:
+        if columns_and_methods is None:
+            base_column = self._meaningful_columns['percentage']
+            columns_and_methods = ((base_column, 'total'), (base_column, 'parent'))
+        for base_column, method in columns_and_methods:
+            self.add_ratio_column(
                 base_column, '{} ratio of {}'.format(base_column, method), method)
 
-    def _add_percentage_column(self, base_column: str, column_name: str, method: str) -> None:
-        assert base_column in self.columns, base_column
+    def add_ratio_column(self, base_column: str, column_name: str, method: str) -> None:
+        """Add a new column with ratio information taken from the base column.
+
+        There are two methods of calculating the ratios.
+
+        "total"
+        Compare all values in the base column to the value in that column at the root.
+
+        "parent"
+        Compare each value in the base column to the value in that column
+        at one level higher in the call path.
+        """
+        assert base_column in self.columns, (base_column, self.columns)
+        assert column_name not in self.columns, (column_name, self.columns)
         column_index = self.columns.get_loc(base_column) + 1
         simple_self = self[[base_column, 'callpath']]
         if method == 'total':
@@ -293,7 +369,8 @@ class HPCtoolkitDataFrame(pd.DataFrame):
                     try:
                         filtered = simple_self.loc[simple_self['callpath'] == base_callpath]
                     except KeyError:
-                        _LOG.exception('no measurements for callpath %s', base_callpath)
+                        _LOG.exception('%s: no measurements for callpath %s',
+                                       self._db_path, base_callpath)
                         continue
                     assert len(filtered) == 1, \
                         (base_column, row.at['callpath'], base_callpath, filtered)
@@ -305,33 +382,7 @@ class HPCtoolkitDataFrame(pd.DataFrame):
 
     @property
     def compact(self):
-        location_columns = ['module', 'file', 'line', 'procedure', 'type']
-        if 'CPUTIME (usec):Mean (I)' in self.columns:
-            compact_columns = ['CPUTIME (usec):Mean (I)',
-                               'CPUTIME (usec):Mean (I) ratio of total',
-                               'CPUTIME (usec):Mean (I) ratio of parent']
-        else:
-            compact_columns = ['CPUTIME (usec):Sum (I)',
-                               'CPUTIME (usec):Sum (I) ratio of total',
-                               'CPUTIME (usec):Sum (I) ratio of parent']
-
-        return self[location_columns + compact_columns]
-
-    def select_basic(self, category: str) -> pd.DataFrame:
-        selected_columns = [
-            r'CPUTIME (usec):Mean ({})',
-            r'CPUTIME (usec):Mean ({}) ratio of total', r'CPUTIME (usec):Mean ({}) ratio of parent',
-            r'CPUTIME (usec):Min ({})', r'CPUTIME (usec):Max ({})', r'CPUTIME (usec):StdDev ({})']
-        selected_columns = [_.format(category) for _ in selected_columns]
-        return self[selected_columns]
-
-    @property
-    def basic_i(self):
-        return self.select_basic('I')
-
-    @property
-    def basic_e(self):
-        return self.select_basic('E')
+        return self[self._meaningful_columns['compact']]
 
     def at_paths(self, *fragments, prefix: tuple = (), suffix: tuple = ()) -> pd.DataFrame:
         mask = self.apply(_callpath_filter, axis=1, args=(fragments, prefix, suffix))
@@ -345,11 +396,11 @@ class HPCtoolkitDataFrame(pd.DataFrame):
     def at_depth(self, depth: int) -> pd.DataFrame:
         return self.at_depths(depth, depth)
 
-    def hot_path(self, callpath: tuple = (), threshold: int = 0.05) -> pd.DataFrame:
-        if 'CPUTIME (usec):Mean (I) ratio of total' in self.columns:
-            base_column = 'CPUTIME (usec):Mean (I) ratio of total'
-        else:
-            base_column = 'CPUTIME (usec):Sum (I) ratio of total'
+    def hot_path(self, callpath: t.Sequence[int] = (), threshold: int = 0.05,
+                 base_column: str = None) -> pd.DataFrame:
+        if base_column is None:
+            base_column = self._meaningful_columns['hot_path']
+        assert base_column in self.columns, (base_column, self.columns)
         simple_self = self[[base_column, 'callpath']]
         hot_callpaths = []
 
@@ -357,9 +408,9 @@ class HPCtoolkitDataFrame(pd.DataFrame):
             hot_callpaths.append(callpath)
 
             simple_self = simple_self.at_paths(prefix=callpath)
-            _LOG.debug('%i at target callpath', len(simple_self))
+            _LOG.debug('%s: %i at target callpath', self._db_path, len(simple_self))
             at_depth = simple_self.at_depth(len(callpath) + 1)
-            _LOG.debug('%i at depth %i', len(at_depth), len(callpath) + 1)
+            _LOG.debug('%s: %i at depth %i', self._db_path, len(at_depth), len(callpath) + 1)
 
             if at_depth.empty:
                 break
@@ -371,8 +422,3 @@ class HPCtoolkitDataFrame(pd.DataFrame):
                 break
 
         return self[self.callpath.isin(hot_callpaths)]
-
-
-# HPCtoolkitDataFrame(path=pathlib.Path(
-#    '/nfs2/mbysiek/Projects/docker-transpyle-flash/results/'
-#    'profile_20180905-120519_subset_Sedov_base_a_db/experiment.xml')).hot_path()[-2:].compact

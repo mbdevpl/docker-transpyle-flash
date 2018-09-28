@@ -17,6 +17,10 @@ __pycache__
 *.egg-info
 *.pyc
 
+# Python: coverage
+/htmlcov
+/.coverage
+
 # other
 /results
 /transpyle_flash.py
