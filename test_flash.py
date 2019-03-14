@@ -2,6 +2,7 @@
 
 import datetime
 import logging
+import os
 import pathlib
 import subprocess
 import unittest
@@ -72,6 +73,8 @@ class FlashTests(unittest.TestCase):
     def run_transpyle(self, transpiled_paths):
         absolute_transpiled_paths = [pathlib.Path(_HERE, self.root_path, self.source_path, path)
                                      for path in transpiled_paths]
+        if not absolute_transpiled_paths:
+            return
         all_failed = True
         for path in absolute_transpiled_paths:
             self.assertTrue(path.is_file())
@@ -104,7 +107,7 @@ class FlashTests(unittest.TestCase):
                     ''.join(cmd_stderr.splitlines(keepends=True)[-50:]))
         self.assertEqual(cmd_result.returncode, 0, msg=cmd_msg)
 
-    def run_flash(self, flash_args, object_path: pathlib.Path = None):
+    def run_flash(self, flash_args, object_path: pathlib.Path = None, quick: bool = False):
         if object_path is None:
             object_path = pathlib.Path('object')
         absolute_flash_path = pathlib.Path(_HERE, self.root_path)
@@ -119,13 +122,16 @@ class FlashTests(unittest.TestCase):
         something_wrong = True
         with self.subTest(flash_path=absolute_flash_path, setup_cmd=flash_setup_cmd,
                           make_cmd=flash_make_cmd, run_cmd=flash_run_cmd):
-            _LOG.warning('Setting up FLASH...')
-            self._run_and_check(flash_setup_cmd, absolute_flash_path, 'setup')
-            _LOG.warning('Setup succeeded.')
+            if quick and absolute_object_path.is_dir:
+                _LOG.warning('Skipping setup & build -- objdir "%s" already exists.', object_path)
+            else:
+                _LOG.warning('Setting up FLASH...')
+                self._run_and_check(flash_setup_cmd, absolute_flash_path, 'setup')
+                _LOG.warning('Setup succeeded.')
 
-            _LOG.warning('Building FLASH...')
-            self._run_and_check(flash_make_cmd, absolute_object_path, 'make')
-            _LOG.warning('Build succeeded.')
+                _LOG.warning('Building FLASH...')
+                self._run_and_check(flash_make_cmd, absolute_object_path, 'make')
+                _LOG.warning('Build succeeded.')
 
             try:
                 run_result = subprocess.run(' '.join(flash_run_cmd), shell=True,
@@ -137,11 +143,13 @@ class FlashTests(unittest.TestCase):
         if something_wrong:
             self.fail('FLASH setup, build, or run failed.')
 
-    def run_problem(self, transpiled_paths, flash_args, object_path=None, pre_verify=True):
+    def run_problem(self, transpiled_paths, flash_args, object_path=None, pre_verify=True,
+                    quick: bool = False):
+        assert not (transpiled_paths and quick)
         if pre_verify:
-            self.run_flash(flash_args, object_path)
+            self.run_flash(flash_args, object_path, quick)
         self.run_transpyle(transpiled_paths)
-        self.run_flash(flash_args, object_path)
+        self.run_flash(flash_args, object_path, quick)
 
     def run_sod_problem(self, transpiled_paths, **kwargs):
         args = 'Sod -auto -2d'
@@ -151,6 +159,46 @@ class FlashTests(unittest.TestCase):
         args = \
             'magnetoHD/CurrentSheet -auto -2d -objdir=mhdrotor -gridinterpolation=native -debug'
         self.run_problem(transpiled_paths, args, object_path=pathlib.Path('mhdrotor'), **kwargs)
+
+
+class NewFlashSubsetTests(FlashTests):
+
+    run_cmd = ['./flash4']
+    quick = True
+
+    @classmethod
+    def setUpClass(cls):
+        cls.root_path = pathlib.Path('flash-subset', 'FLASH4.4')
+
+    def test_sod_uniform_grid(self):
+        paths = []
+        args = 'Sod -auto -3d +nofbs -parfile=test_UG_nofbs_3d.par objdir=sodug -debug'
+        objdir = 'sodug'
+        self.run_problem(paths, args, object_path=pathlib.Path(objdir), pre_verify=False, quick=True)
+
+    def test_sod_paramesh(self):
+        paths = []
+        args = 'Sod -3d -auto +Mode1 -objdir=sodpm -debug'
+        objdir = 'sodpm'
+        self.run_problem(paths, args, object_path=pathlib.Path(objdir), pre_verify=False, quick=True)
+
+    def test_sod_amrex(self):
+        paths = []
+        args = 'Sod -3d -auto +Mode3 -objdir=sodamrex -debug'
+        objdir = 'sodamrex'
+        self.run_problem(paths, args, object_path=pathlib.Path(objdir), pre_verify=False, quick=True)
+
+    def test_cellular_2d(self):
+        paths = []
+        args = 'Cellular -auto -2d +a13'
+        objdir = 'cellular2d'
+        self.run_problem(paths, args, object_path=pathlib.Path(objdir), pre_verify=False, quick=True)
+
+    def test_cellular_3d(self):
+        paths = []
+        args = 'Cellular -auto -3d +a13'
+        objdir = 'cellular3d'
+        self.run_problem(paths, args, object_path=pathlib.Path(objdir), pre_verify=False, quick=True)
 
 
 class FlashSubsetTests(FlashTests):
