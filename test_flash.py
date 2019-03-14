@@ -175,7 +175,7 @@ class NewTests(FlashTests):
 
     def test_sod_uniform_grid(self):
         paths = []
-        args = 'Sod -auto -3d +nofbs -parfile=test_UG_nofbs_3d.par objdir=sodug -debug'
+        args = 'Sod -auto -3d +nofbs -parfile=test_UG_nofbs_3d.par -objdir=sodug -debug'
         objdir = 'sodug'
         self.run_problem(paths, args, object_path=pathlib.Path(objdir), pre_verify=False, quick=True)
 
@@ -193,13 +193,13 @@ class NewTests(FlashTests):
 
     def test_cellular_2d(self):
         paths = []
-        args = 'Cellular -auto -2d +a13'
+        args = 'Cellular -auto -2d +a13 -objdir=cellular2d'
         objdir = 'cellular2d'
         self.run_problem(paths, args, object_path=pathlib.Path(objdir), pre_verify=False, quick=True)
 
     def test_cellular_3d(self):
         paths = []
-        args = 'Cellular -auto -3d +a13'
+        args = 'Cellular -auto -3d +a13 -objdir=cellular3d'
         objdir = 'cellular3d'
         self.run_problem(paths, args, object_path=pathlib.Path(objdir), pre_verify=False, quick=True)
 
