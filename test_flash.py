@@ -122,7 +122,7 @@ class FlashTests(unittest.TestCase):
         something_wrong = True
         with self.subTest(flash_path=absolute_flash_path, setup_cmd=flash_setup_cmd,
                           make_cmd=flash_make_cmd, run_cmd=flash_run_cmd):
-            if quick and absolute_object_path.is_dir:
+            if quick and absolute_object_path.is_dir():
                 _LOG.warning('Skipping setup & build -- objdir "%s" already exists.', object_path)
             else:
                 _LOG.warning('Setting up FLASH...')
@@ -161,7 +161,7 @@ class FlashTests(unittest.TestCase):
         self.run_problem(transpiled_paths, args, object_path=pathlib.Path('mhdrotor'), **kwargs)
 
 
-class NewFlashSubsetTests(FlashTests):
+class NewTests(FlashTests):
 
     run_cmd = ['./flash4']
     quick = True
