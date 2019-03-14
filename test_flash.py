@@ -54,6 +54,7 @@ class FlashTests(unittest.TestCase):
     setup_cmd = ['./setup', '-site', 'spack']
     make_cmd = ['make']
     run_cmd = ['mpirun', '-np', '2', './flash4']
+    clean_repo = True
 
     timeout = None  # type: int
 
@@ -65,7 +66,7 @@ class FlashTests(unittest.TestCase):
         self.assertIn(str(_HERE), str(repo_path), msg=(repo_path, _HERE, repo))
         self.assertNotEqual(repo_path, _HERE, msg=(repo_path, _HERE, repo))
         repo_is_dirty = repo.is_dirty(untracked_files=True)
-        if repo_is_dirty:
+        if repo_is_dirty and self.clean_repo:
             repo.git.clean(f=True, d=True, x=True)
             repo.git.reset(hard=True)
             _LOG.warning('Repository %s has been cleaned and reset.', repo)
@@ -164,6 +165,8 @@ class FlashTests(unittest.TestCase):
 class NewTests(FlashTests):
 
     run_cmd = ['./flash4']
+    clean_repo = False
+
     quick = True
 
     @classmethod
