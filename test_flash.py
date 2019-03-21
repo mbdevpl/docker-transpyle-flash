@@ -11,13 +11,16 @@ import git
 from transpyle.general import CodeReader, CodeWriter
 from transpyle.fortran import FortranParser, FortranAstGeneralizer, Fortran2008Unparser
 
+import common
+from common import _run_and_check
+
 logging.basicConfig()
 
 _LOG = logging.getLogger(__name__)
 
 _HERE = pathlib.Path(__file__).parent.resolve()
 
-_NOW = datetime.datetime.now()
+common._NOW = datetime.datetime.now()
 
 
 def fortran_to_fortran(path: pathlib.Path):
@@ -87,26 +90,7 @@ class FlashTests(unittest.TestCase):
                       .format(absolute_transpiled_paths))
 
     def _run_and_check(self, cmd, wd, log_filename_prefix):
-        cmd_result = subprocess.run(' '.join(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                    shell=True, cwd=str(wd))
-        cmd_msg = None
-        if cmd_result.returncode != 0:
-            log_dir = pathlib.Path(
-                _HERE, 'results', '{}_{}'.format(_NOW.strftime('%Y%m%d-%H%M%S'), self.id()))
-            log_dir.mkdir(parents=True, exist_ok=True)
-            cmd_stdout = cmd_result.stdout.decode()
-            with open(str(pathlib.Path(log_dir, '{}_stdout.log'.format(log_filename_prefix))),
-                      'w') as cmd_stdout_file:
-                cmd_stdout_file.write(cmd_stdout)
-            cmd_stderr = cmd_result.stderr.decode()
-            with open(str(pathlib.Path(log_dir, '{}_stderr.log'.format(log_filename_prefix))),
-                      'w') as cmd_stderr_file:
-                cmd_stderr_file.write(cmd_stderr)
-            cmd_msg = '"{}" failed, returncode={}, logs were written to "{}"' \
-                ' and last 50 lines of stderr follow:\n{}'.format(
-                    ' '.join(cmd), cmd_result.returncode, log_dir,
-                    ''.join(cmd_stderr.splitlines(keepends=True)[-50:]))
-        self.assertEqual(cmd_result.returncode, 0, msg=cmd_msg)
+        _run_and_check(cmd, wd, test_name=self.id(), phase_name=log_filename_prefix)
 
     def run_flash(self, flash_args, object_path: pathlib.Path = None, quick: bool = False):
         if object_path is None:
@@ -173,22 +157,46 @@ class NewTests(FlashTests):
     def setUpClass(cls):
         cls.root_path = pathlib.Path('flash-subset', 'FLASH4.4')
 
-    def test_sod_uniform_grid(self):
+    def test_sod_uniform_grid_2d(self):
         paths = []
-        args = 'Sod -auto -3d +nofbs -parfile=test_UG_nofbs_3d.par -objdir=sodug -debug'
-        objdir = 'sodug'
+        args = 'Sod -auto -2d +nofbs -parfile=test_UG_nofbs_2d.par -objdir=sodug2d -debug'
+        args += ' +noio'
+        objdir = 'sodug2d'
         self.run_problem(paths, args, object_path=pathlib.Path(objdir), pre_verify=False, quick=True)
 
-    def test_sod_paramesh(self):
+    def test_sod_uniform_grid_3d(self):
         paths = []
-        args = 'Sod -3d -auto +Mode1 -objdir=sodpm -debug'
-        objdir = 'sodpm'
+        args = 'Sod -auto -3d +nofbs -parfile=test_UG_nofbs_3d.par -objdir=sodug3d -debug'
+        args += ' +noio'
+        objdir = 'sodug3d'
         self.run_problem(paths, args, object_path=pathlib.Path(objdir), pre_verify=False, quick=True)
 
-    def test_sod_amrex(self):
+    def test_sod_paramesh_2d(self):
         paths = []
-        args = 'Sod -3d -auto +Mode3 -objdir=sodamrex -debug'
-        objdir = 'sodamrex'
+        args = 'Sod -2d -auto +Mode1 -objdir=sodpm2d -debug'
+        args += ' +noio'
+        objdir = 'sodpm2d'
+        self.run_problem(paths, args, object_path=pathlib.Path(objdir), pre_verify=False, quick=True)
+
+    def test_sod_paramesh_3d(self):
+        paths = []
+        args = 'Sod -3d -auto +Mode1 -objdir=sodpm3d -debug'
+        args+= ' +noio'
+        objdir = 'sodpm3d'
+        self.run_problem(paths, args, object_path=pathlib.Path(objdir), pre_verify=False, quick=True)
+
+    def test_sod_amrex_2d(self):
+        paths = []
+        args = 'Sod -2d -auto +Mode3 -objdir=sodamrex2d -debug'
+        # args += ' +noio'
+        objdir = 'sodamrex2d'
+        self.run_problem(paths, args, object_path=pathlib.Path(objdir), pre_verify=False, quick=True)
+
+    def test_sod_amrex_3d(self):
+        paths = []
+        args = 'Sod -3d -auto +Mode3 -objdir=sodamrex3d -debug'
+        args += ' +noio'
+        objdir = 'sodamrex3d'
         self.run_problem(paths, args, object_path=pathlib.Path(objdir), pre_verify=False, quick=True)
 
     def test_cellular_2d(self):

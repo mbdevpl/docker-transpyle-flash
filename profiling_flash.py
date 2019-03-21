@@ -4,48 +4,17 @@ import datetime
 import logging
 # import math
 import pathlib
-import subprocess
 import typing as t
 
 import git
+
+from common import HPCRUN_EXE, HPCSTRUCT_EXE, HPCPROF_EXE, FLASH_SITE, profile_path, profile_db_path, _run_and_check
 
 _HERE = pathlib.Path(__file__).parent.resolve()
 
 _LOG = logging.getLogger(__name__)
 
-_RESULTS_ROOT = pathlib.Path(_HERE, 'results')
-
-_NOW = None
-
 _JUST_RAN = None
-
-FLASH_SITE = 'spack'
-
-HPCRUN_EXE = 'hpcrun'  # shutil.which('hpcrun')
-HPCSTRUCT_EXE = 'hpcstruct'  # shutil.which('hpcstruct')
-HPCPROF_EXE = 'hpcprof'  # shutil.which('hpcprof')
-
-
-def _run_and_check(cmd: str, wd: pathlib.Path, *,
-                   test_name: str, phase_name: str):
-    _LOG.warning('%s.%s: running "%s" with wd="%s"', test_name, phase_name, cmd, wd)
-    cmd_result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                shell=True, cwd=str(wd))
-    log_dir = logs_path(test_name=test_name)
-    log_dir.mkdir(parents=True, exist_ok=True)
-    cmd_stdout = cmd_result.stdout.decode()
-    with pathlib.Path(log_dir, '{}_stdout.log'.format(phase_name)).open('w') as cmd_stdout_file:
-        cmd_stdout_file.write(cmd_stdout)
-    cmd_stderr = cmd_result.stderr.decode()
-    with pathlib.Path(log_dir, '{}_stderr.log'.format(phase_name)).open('w') as cmd_stderr_file:
-        cmd_stderr_file.write(cmd_stderr)
-    cmd_msg = None
-    if cmd_result.returncode != 0:
-        cmd_msg = '"{}" failed, returncode={}, logs were written to "{}"' \
-            ' and last 50 lines of stderr follow:\n{}'.format(
-                cmd, cmd_result.returncode, log_dir,
-                ''.join(cmd_stderr.splitlines(keepends=True)[-50:]))
-    assert cmd_result.returncode == 0, cmd_msg
 
 
 def make_sfocu(flash_dir: pathlib.Path):
@@ -154,22 +123,3 @@ def profile_experiment(app_name: str, experiment: str, branch: str, objdir: str,
         clean_flash(build_dir,
                     test_name=test_name)
     _JUST_RAN = (datetime.datetime.now(), app_name, experiment, branch)
-
-
-def date_str(date=None) -> str:
-    if date is None:
-        date = _NOW
-    return date.strftime('%Y%m%d-%H%M%S')
-
-
-def logs_path(date=None, *, test_name) -> pathlib.Path:
-    return _RESULTS_ROOT.joinpath('{}_{}'.format(date_str(date), test_name))
-
-
-def profile_path(date=None, *, test_name) -> pathlib.Path:
-    return _RESULTS_ROOT.joinpath('profile_{}_{}'.format(date_str(date), test_name))
-
-
-def profile_db_path(date=None, *, test_name) -> pathlib.Path:
-    profile_dir = profile_path(date, test_name=test_name)
-    return profile_dir.with_name(profile_dir.name + '_db')
